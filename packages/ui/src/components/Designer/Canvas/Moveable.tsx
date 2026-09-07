@@ -15,6 +15,8 @@ type Props = {
   bounds: { left: number; top: number; bottom: number; right: number };
   horizontalGuidelines: number[];
   verticalGuidelines: number[];
+  elementGuidelines: HTMLElement[];
+  snapEnabled: boolean;
   keepRatio: boolean;
   rotatable: boolean;
   onDrag: ({ target, left, top }: OnDrag) => void;
@@ -55,7 +57,13 @@ const Moveable = (props: Props, ref: Ref<MoveableComponent>) => {
       className={uniqueClassName}
       rootContainer={document ? document.body : undefined}
       zoom={props.controlScale}
-      snappable
+      snappable={props.snapEnabled}
+      snapCenter
+      snapDirections={{ top: true, right: true, bottom: true, left: true, center: true, middle: true }}
+      elementSnapDirections={{ top: true, right: true, bottom: true, left: true, center: true, middle: true }}
+      snapThreshold={5}
+      isDisplaySnapDigit={false}
+      elementGuidelines={props.elementGuidelines}
       draggable
       rotatable={props.rotatable}
       resizable

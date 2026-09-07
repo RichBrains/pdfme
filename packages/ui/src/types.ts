@@ -1,4 +1,4 @@
-import type { SchemaForUI, Size, ChangeSchemas, BasePdf } from '@pdfme/common';
+import type { SchemaForUI, Size, ChangeSchemas, BasePdf, Template, PageLayoutSettings } from '@pdfme/common';
 
 export type SidebarProps = {
   height: number;
@@ -6,6 +6,9 @@ export type SidebarProps = {
   onChangeHoveringSchemaId: (id: string | null) => void;
   size: Size;
   pageSize: Size;
+  pageIndex: number;
+  template: Template;
+  onChangePageLayout: (pageIndex: number, update: (layout: PageLayoutSettings) => PageLayoutSettings) => void;
   basePdf: BasePdf;
   activeElements: HTMLElement[];
   schemas: SchemaForUI[];

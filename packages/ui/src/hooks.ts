@@ -623,6 +623,12 @@ export const useMountStatus = () => {
   return isMounted;
 };
 
+interface HistorySnapshot {
+  schemasList: SchemaForUI[][];
+  basePdf: Template['basePdf'];
+  layout?: Template['layout'];
+}
+
 interface UseInitEventsParams {
   pageCursor: number;
   pageSizes: Size[];
@@ -633,9 +639,10 @@ interface UseInitEventsParams {
   commitSchemas: (newSchemas: SchemaForUI[]) => void;
   removeSchemas: (ids: string[]) => void;
   onSaveTemplate: (t: Template) => void;
-  past: React.MutableRefObject<SchemaForUI[][]>;
-  future: React.MutableRefObject<SchemaForUI[][]>;
+  past: React.MutableRefObject<HistorySnapshot[]>;
+  future: React.MutableRefObject<HistorySnapshot[]>;
   setSchemasList: React.Dispatch<React.SetStateAction<SchemaForUI[][]>>;
+  onTimeTravel: (snapshot: HistorySnapshot) => void;
   onEdit: (targets: Array<HTMLElement | null | undefined>) => void;
   onEditEnd: () => void;
 }
@@ -653,6 +660,7 @@ export const useInitEvents = ({
   past,
   future,
   setSchemasList,
+  onTimeTravel,
   onEdit,
   onEditEnd,
 }: UseInitEventsParams) => {
@@ -673,10 +681,12 @@ export const useInitEvents = ({
       const isUndo = mode === 'undo';
       const stack = isUndo ? past : future;
       if (stack.current.length <= 0) return;
-      (isUndo ? future : past).current.push(cloneDeep(schemasList[pageCursor]));
-      const s = cloneDeep(schemasList);
-      s[pageCursor] = stack.current.pop()!;
-      setSchemasList(s);
+      (isUndo ? future : past).current.push({
+        schemasList: cloneDeep(schemasList),
+        basePdf: template.basePdf,
+        layout: cloneDeep(template.layout),
+      });
+      onTimeTravel(stack.current.pop()!);
     };
     initShortCuts({
       move: (command, isShift) => {
@@ -738,6 +748,7 @@ export const useInitEvents = ({
     past,
     future,
     setSchemasList,
+    onTimeTravel,
     copiedSchemas,
     onEdit,
     onEditEnd,

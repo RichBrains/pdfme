@@ -1,6 +1,7 @@
-import { Space, Button, Form } from 'antd';
+import { Space, Button, Form, Select } from 'antd';
 import React from 'react';
-import type { PropPanelWidgetProps } from '@pdfme/common';
+import { clampToContentBounds, getTemplateContentBounds, type PropPanelWidgetProps } from '@pdfme/common';
+import type { SidebarProps } from '../../../../types.js';
 import { DESIGNER_CLASSNAME } from '../../../../constants.js';
 import {
   AlignStartVertical,
@@ -16,6 +17,8 @@ import { round } from '../../../../helper.js';
 
 const AlignWidget = (props: PropPanelWidgetProps) => {
   const { activeElements, changeSchemas, schemas, pageSize, schema } = props;
+  const layoutProps = props as PropPanelWidgetProps & Partial<Pick<SidebarProps, 'template' | 'pageIndex'>>;
+  const [reference, setReference] = React.useState<'selection' | 'page' | 'content'>('selection');
   const align = (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
     const ids = activeElements.map((ae) => ae.id);
     const ass = schemas.filter((s) => ids.includes(s.id));
@@ -25,16 +28,20 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
     const tgtSize = isVertical ? 'width' : 'height';
     const isSingle = ass.length === 1;
     // Access pageSize property safely with proper type assertion
-    const root =
-      pageSize && typeof pageSize === 'object'
-        ? tgtSize === 'width'
-          ? (pageSize as unknown as { width: number }).width
-          : (pageSize as unknown as { height: number }).height
-        : 0;
+    const pageExtent = pageSize && typeof pageSize === 'object' ? tgtSize === 'width' ? (pageSize as { width: number }).width : (pageSize as { height: number }).height : 0;
+    const contentBounds = layoutProps.template && typeof layoutProps.pageIndex === 'number'
+      ? getTemplateContentBounds(layoutProps.template, layoutProps.pageIndex, pageSize as { width: number; height: number })
+      : undefined;
+    const root = reference === 'content' && contentBounds
+      ? tgtSize === 'width' ? contentBounds.width : contentBounds.height
+      : pageExtent;
+    const rootStart = reference === 'content' && contentBounds
+      ? tgtPos === 'x' ? contentBounds.left : contentBounds.top
+      : 0;
 
     // Access position properties safely with proper type assertion
-    const min = isSingle
-      ? 0
+    const min = isSingle && reference !== 'selection'
+      ? rootStart
       : Math.min(
           ...ass.map((as) => {
             // Safely access position property with proper type assertion
@@ -45,8 +52,8 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
             return tgtPos === 'x' ? position.x : position.y;
           }),
         );
-    const max = isSingle
-      ? root
+    const max = isSingle && reference !== 'selection'
+      ? rootStart + root
       : Math.max(
           ...ass.map((as) => {
             // Safely access position and size properties with proper type assertion
@@ -161,6 +168,19 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
       }),
     );
   };
+  const moveIntoContentArea = () => {
+    if (!layoutProps.template || typeof layoutProps.pageIndex !== 'number') return;
+    const bounds = getTemplateContentBounds(layoutProps.template, layoutProps.pageIndex, pageSize as { width: number; height: number });
+    const ids = activeElements.map((element) => element.id);
+    changeSchemas(schemas.filter((item) => ids.includes(item.id)).flatMap((item) => {
+      const position = clampToContentBounds(item, bounds);
+      return [
+        { key: 'position.x', value: round(position.x, 2), schemaId: item.id },
+        { key: 'position.y', value: round(position.y, 2), schemaId: item.id },
+      ];
+    }));
+  };
+
   const layoutBtns: {
     id: string;
     icon: React.JSX.Element;
@@ -210,6 +230,8 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
 
   return (
     <Form.Item label={schema?.title}>
+      <Space direction="vertical" size={4}>
+        <Select size="small" value={reference} onChange={setReference} options={[{ value: 'selection', label: 'Selection' }, { value: 'page', label: 'Page' }, { value: 'content', label: 'Content margins' }]} />
       <Space.Compact>
         {layoutBtns.map((btn) => (
           <Button
@@ -221,6 +243,8 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
           />
         ))}
       </Space.Compact>
+      <Button size="small" onClick={moveIntoContentArea} disabled={!layoutProps.template}>Move into content area</Button>
+      </Space>
     </Form.Item>
   );
 };

@@ -23,11 +23,20 @@ const _Guides = ({
   paperSize,
   horizontalRef,
   verticalRef,
+  horizontalGuides,
+  verticalGuides,
+  onChangeHorizontalGuides,
+  onChangeVerticalGuides,
 }: {
   paperSize: Size;
   horizontalRef: Ref<GuidesComponent> | undefined;
   verticalRef: Ref<GuidesComponent> | undefined;
-}) => (
+  horizontalGuides: number[];
+  verticalGuides: number[];
+  onChangeHorizontalGuides: (guides: number[]) => void;
+  onChangeVerticalGuides: (guides: number[]) => void;
+}) => {
+  return (
   <>
     <div
       className="ruler-container"
@@ -38,14 +47,19 @@ const _Guides = ({
       style={guideStyle(-RULER_HEIGHT, 0, RULER_HEIGHT, paperSize.width)}
       type="horizontal"
       ref={horizontalRef}
+      defaultGuides={horizontalGuides}
+      onChangeGuides={({ guides }: { guides: number[] }) => onChangeHorizontalGuides(guides)}
     />
     <GuidesView
       zoom={ZOOM}
       style={guideStyle(0, -RULER_HEIGHT, paperSize.height, RULER_HEIGHT)}
       type="vertical"
       ref={verticalRef}
+      defaultGuides={verticalGuides}
+      onChangeGuides={({ guides }: { guides: number[] }) => onChangeVerticalGuides(guides)}
     />
   </>
-);
+  );
+};
 
 export default _Guides;

@@ -4,6 +4,7 @@ import { DESIGNER_CLASSNAME } from '../../../../constants.js';
 import { I18nContext } from '../../../../contexts.js';
 import { Input, Typography, Button } from 'antd';
 import SelectableSortableContainer from './SelectableSortableContainer.js';
+import LayoutSettings from './LayoutSettings.js';
 import { SidebarBody, SidebarFooter, SidebarFrame, SidebarHeader } from '../layout.js';
 
 const { Text } = Typography;
@@ -18,9 +19,12 @@ const ListView = (
     | 'hoveringSchemaId'
     | 'onChangeHoveringSchemaId'
     | 'changeSchemas'
+    | 'template'
+    | 'pageIndex'
+    | 'onChangePageLayout'
   >,
 ) => {
-  const { schemas, onSortEnd, onEdit, hoveringSchemaId, onChangeHoveringSchemaId, changeSchemas } =
+  const { schemas, onSortEnd, onEdit, hoveringSchemaId, onChangeHoveringSchemaId, changeSchemas, template, pageIndex, onChangePageLayout } =
     props;
   const i18n = useContext(I18nContext);
   const [isBulkUpdateFieldNamesMode, setIsBulkUpdateFieldNamesMode] = useState(false);
@@ -68,13 +72,16 @@ const ListView = (
             }}
           />
         ) : (
-          <SelectableSortableContainer
-            schemas={schemas}
-            hoveringSchemaId={hoveringSchemaId}
-            onChangeHoveringSchemaId={onChangeHoveringSchemaId}
-            onSortEnd={onSortEnd}
-            onEdit={onEdit}
-          />
+          <>
+            <SelectableSortableContainer
+              schemas={schemas}
+              hoveringSchemaId={hoveringSchemaId}
+              onChangeHoveringSchemaId={onChangeHoveringSchemaId}
+              onSortEnd={onSortEnd}
+              onEdit={onEdit}
+            />
+            <LayoutSettings template={template} pageIndex={pageIndex} onChangePageLayout={onChangePageLayout} />
+          </>
         )}
       </SidebarBody>
       <SidebarFooter>

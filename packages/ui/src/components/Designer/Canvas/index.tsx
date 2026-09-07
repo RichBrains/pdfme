@@ -17,7 +17,10 @@ import {
   Size,
   ChangeSchemas,
   BasePdf,
-  isBlankPdf,
+  Template,
+  getPageLayout,
+  isOutsideContentBounds,
+  getTemplateContentBounds,
   replacePlaceholders,
 } from '@pdfme/common';
 import { PluginsRegistry } from '../../../contexts.js';
@@ -32,6 +35,8 @@ import Moveable from './Moveable.js';
 import Guides from './Guides.js';
 import Mask from './Mask.js';
 import Padding from './Padding.js';
+import Grid from './Grid.js';
+import { getLayoutSnapTargets } from './layoutSnap.js';
 import StaticSchema from '../../StaticSchema.js';
 
 const mm2px = (mm: number) => mm * 3.7795275591;
@@ -94,6 +99,8 @@ interface GuidesInterface {
 
 interface Props {
   basePdf: BasePdf;
+  template: Template;
+  onChangePageLayout: (pageIndex: number, update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>) => void;
   height: number;
   hoveringSchemaId: string | null;
   onChangeHoveringSchemaId: (id: string | null) => void;
@@ -115,6 +122,8 @@ interface Props {
 const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const {
     basePdf,
+    template,
+    onChangePageLayout,
     pageCursor,
     scale,
     renderScale,
@@ -139,15 +148,18 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const controlScale = scale > 0 ? 1 / scale : 1;
 
   const [isPressShiftKey, setIsPressShiftKey] = useState(false);
+  const [isPressAltKey, setIsPressAltKey] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const prevSchemas = usePrevious(schemasList[pageCursor]);
 
   const onKeydown = (e: KeyboardEvent) => {
     if (e.shiftKey) setIsPressShiftKey(true);
+    if (e.altKey) setIsPressAltKey(true);
   };
   const onKeyup = (e: KeyboardEvent) => {
     if (e.key === 'Shift' || !e.shiftKey) setIsPressShiftKey(false);
+    if (e.key === 'Alt' || !e.altKey) setIsPressAltKey(false);
     if (e.key === 'Escape' || e.key === 'Esc') setEditing(false);
   };
 
@@ -186,36 +198,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   }, [renderScale]);
 
   const onDrag = ({ target, top, left }: OnDrag) => {
-    const { width: _width, height: _height } = target.style;
-    const targetWidth = fmt(_width);
-    const targetHeight = fmt(_height);
-    const actualTop = top / ZOOM;
-    const actualLeft = left / ZOOM;
-    const { width: pageWidth, height: pageHeight } = pageSizes[pageCursor];
-    let topPadding = 0;
-    let rightPadding = 0;
-    let bottomPadding = 0;
-    let leftPadding = 0;
-
-    if (isBlankPdf(basePdf)) {
-      const [t, r, b, l] = basePdf.padding;
-      topPadding = t * ZOOM;
-      rightPadding = r;
-      bottomPadding = b;
-      leftPadding = l * ZOOM;
-    }
-
-    if (actualTop + targetHeight > pageHeight - bottomPadding) {
-      target.style.top = `${(pageHeight - targetHeight - bottomPadding) * ZOOM}px`;
-    } else {
-      target.style.top = `${top < topPadding ? topPadding : top}px`;
-    }
-
-    if (actualLeft + targetWidth > pageWidth - rightPadding) {
-      target.style.left = `${(pageWidth - targetWidth - rightPadding) * ZOOM}px`;
-    } else {
-      target.style.left = `${left < leftPadding ? leftPadding : left}px`;
-    }
+    target.style.top = `${top}px`;
+    target.style.left = `${left}px`;
   };
 
   const onDragEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
@@ -286,57 +270,20 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
 
   const onResize = ({ target, width, height, direction }: OnResize) => {
     if (!target) return;
-    let topPadding = 0;
-    let rightPadding = 0;
-    let bottomPadding = 0;
-    let leftPadding = 0;
-
-    if (isBlankPdf(basePdf)) {
-      const [t, r, b, l] = basePdf.padding;
-      topPadding = t * ZOOM;
-      rightPadding = mm2px(r);
-      bottomPadding = mm2px(b);
-      leftPadding = l * ZOOM;
-    }
-
-    const pageWidth = mm2px(pageSizes[pageCursor].width);
-    const pageHeight = mm2px(pageSizes[pageCursor].height);
-
-    const obj: { top?: string; left?: string; width: string; height: string } = {
-      width: `${width}px`,
-      height: `${height}px`,
-    };
-
-    const s = target.style;
-    let newLeft = fmt4Num(s.left) + (fmt4Num(s.width) - width);
-    let newTop = fmt4Num(s.top) + (fmt4Num(s.height) - height);
-    if (newLeft < leftPadding) {
-      newLeft = leftPadding;
-    }
-    if (newTop < topPadding) {
-      newTop = topPadding;
-    }
-    if (newLeft + width > pageWidth - rightPadding) {
-      obj.width = `${pageWidth - rightPadding - newLeft}px`;
-    }
-    if (newTop + height > pageHeight - bottomPadding) {
-      obj.height = `${pageHeight - bottomPadding - newTop}px`;
-    }
-
-    const d = direction.toString();
-    if (isTopLeftResize(d)) {
-      obj.top = `${newTop}px`;
-      obj.left = `${newLeft}px`;
-    } else if (d === '1,-1') {
-      obj.top = `${newTop}px`;
-    } else if (d === '-1,1') {
-      obj.left = `${newLeft}px`;
-    }
-    Object.assign(s, obj);
+    const style = target.style;
+    const oldWidth = fmt4Num(style.width);
+    const oldHeight = fmt4Num(style.height);
+    const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
+    const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - height : 0);
+    Object.assign(style, { width: `${width}px`, height: `${height}px`, left: `${left}px`, top: `${top}px` });
   };
 
-  const getGuideLines = (guides: GuidesInterface[], index: number) =>
-    guides[index] && guides[index].getGuides().map((g) => g * ZOOM);
+  const pageLayout = getPageLayout(template, pageCursor);
+  const snapTargets = useMemo(() => getLayoutSnapTargets({
+    template, pageIndex: pageCursor, pageSize: pageSizes[pageCursor], schemas: schemasList[pageCursor] || [], selectedIds: activeElements.map((element) => element.id),
+  }), [template, pageCursor, pageSizes, schemasList, activeElements]);
+  const setGuides = (axis: 'horizontalGuides' | 'verticalGuides', guides: number[]) =>
+    onChangePageLayout(pageCursor, (layout) => ({ ...layout, [axis]: guides.map((position) => ({ position })) }));
 
   const onClickMoveable = () => {
     // Just set editing to true without trying to access event properties
@@ -442,7 +389,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
             {!editing && activeElements.length > 0 && pageCursor === index && (
               <DeleteButton activeElements={activeElements} controlScale={controlScale} />
             )}
-            <Padding basePdf={basePdf} />
+            <Grid grid={getPageLayout(template, index).grid} pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }} />
+            <Padding template={template} pageIndex={index} />
             <StaticSchema
               template={{ schemas: schemasList, basePdf }}
               input={Object.fromEntries(
@@ -460,6 +408,10 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
               verticalRef={(e) => {
                 if (e) verticalGuides.current[index] = e;
               }}
+              horizontalGuides={pageLayout.horizontalGuides.map((guide) => guide.position)}
+              verticalGuides={pageLayout.verticalGuides.map((guide) => guide.position)}
+              onChangeHorizontalGuides={(guides) => setGuides('horizontalGuides', guides)}
+              onChangeVerticalGuides={(guides) => setGuides('verticalGuides', guides)}
             />
             {pageCursor !== index ? (
               <Mask
@@ -473,8 +425,10 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                   target={activeElements}
                   controlScale={controlScale}
                   bounds={{ left: 0, top: 0, bottom: paperSize.height, right: paperSize.width }}
-                  horizontalGuidelines={getGuideLines(horizontalGuides.current, index)}
-                  verticalGuidelines={getGuideLines(verticalGuides.current, index)}
+                  horizontalGuidelines={snapTargets.horizontal.map((position) => position * ZOOM)}
+                  verticalGuidelines={snapTargets.vertical.map((position) => position * ZOOM)}
+                  elementGuidelines={schemasList[pageCursor].filter((schema) => !activeElements.some((element) => element.id === schema.id)).map((schema) => document.getElementById(schema.id)).filter((element): element is HTMLElement => element instanceof HTMLElement)}
+                  snapEnabled={!isPressAltKey}
                   keepRatio={isPressShiftKey}
                   rotatable={rotatable}
                   onDrag={onDrag}
@@ -538,10 +492,10 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                   : undefined
               }
               stopEditing={() => setEditing(false)}
-              outline={`1px ${hoveringSchemaId === schema.id ? 'solid' : 'dashed'} ${
-                schema.readOnly && hoveringSchemaId !== schema.id
-                  ? 'transparent'
-                  : token.colorPrimary
+              outline={`1px ${isOutsideContentBounds(schema, getTemplateContentBounds(template, pageCursor, pageSizes[pageCursor])) ? 'solid' : hoveringSchemaId === schema.id ? 'solid' : 'dashed'} ${
+                isOutsideContentBounds(schema, getTemplateContentBounds(template, pageCursor, pageSizes[pageCursor]))
+                  ? token.colorWarning
+                  : schema.readOnly && hoveringSchemaId !== schema.id ? 'transparent' : token.colorPrimary
               }`}
               scale={renderScale}
             />

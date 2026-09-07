@@ -18,6 +18,7 @@ import {
   Size,
   isBlankPdf,
   px2mm,
+  getPageLayout,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
@@ -80,8 +81,9 @@ const TemplateEditor = ({
   onChangeTemplate: (t: Template) => void;
   onPageCursorChange: (newPageCursor: number, totalPages: number) => void;
 }) => {
-  const past = useRef<SchemaForUI[][]>([]);
-  const future = useRef<SchemaForUI[][]>([]);
+  type HistorySnapshot = Pick<Template, 'basePdf' | 'layout'> & { schemasList: SchemaForUI[][] };
+  const past = useRef<HistorySnapshot[]>([]);
+  const future = useRef<HistorySnapshot[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const paperRefs = useRef<HTMLDivElement[]>([]);
 
@@ -252,16 +254,31 @@ const TemplateEditor = ({
     return undefined;
   }, [displayScale]);
 
+  const getHistorySnapshot = useCallback(
+    (): HistorySnapshot => ({ schemasList: cloneDeep(schemasList), basePdf: template.basePdf, layout: cloneDeep(template.layout) }),
+    [schemasList, template.basePdf, template.layout],
+  );
+
   const commitSchemas = useCallback(
     (newSchemas: SchemaForUI[]) => {
       future.current = [];
-      past.current.push(cloneDeep(schemasList[pageCursor]));
+      past.current.push(getHistorySnapshot());
       const _schemasList = cloneDeep(schemasList);
       _schemasList[pageCursor] = newSchemas;
       setSchemasList(_schemasList);
-      onChangeTemplate(schemasList2template(_schemasList, template.basePdf));
+      onChangeTemplate({ ...schemasList2template(_schemasList, template.basePdf), layout: template.layout });
     },
-    [template, schemasList, pageCursor, onChangeTemplate],
+    [getHistorySnapshot, template, schemasList, pageCursor, onChangeTemplate],
+  );
+
+  const onChangePageLayout = useCallback(
+    (targetPageIndex: number, update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>) => {
+      future.current = [];
+      past.current.push(getHistorySnapshot());
+      const pages = schemasList.map((_, index) => index === targetPageIndex ? update(getPageLayout(template, index)) : getPageLayout(template, index));
+      onChangeTemplate({ ...schemasList2template(schemasList, template.basePdf), layout: { pages } });
+    },
+    [getHistorySnapshot, onChangeTemplate, schemasList, template],
   );
 
   const removeSchemas = useCallback(
@@ -299,6 +316,11 @@ const TemplateEditor = ({
     past,
     future,
     setSchemasList,
+    onTimeTravel: (snapshot) => {
+      setSchemasList(snapshot.schemasList);
+      onChangeTemplate({ ...schemasList2template(snapshot.schemasList, snapshot.basePdf), layout: snapshot.layout });
+      onEditEnd();
+    },
     onEdit,
     onEditEnd,
   });
@@ -499,6 +521,9 @@ const TemplateEditor = ({
             height={canvasHeight}
             size={size}
             pageSize={pageSizes[pageCursor] ?? []}
+            pageIndex={pageCursor}
+            template={template}
+            onChangePageLayout={onChangePageLayout}
             basePdf={template.basePdf}
             activeElements={activeElements}
             schemasList={schemasList}
@@ -521,6 +546,8 @@ const TemplateEditor = ({
             ref={canvasRef}
             paperRefs={paperRefs}
             basePdf={template.basePdf}
+            template={template}
+            onChangePageLayout={onChangePageLayout}
             hoveringSchemaId={hoveringSchemaId}
             onChangeHoveringSchemaId={onChangeHoveringSchemaId}
             height={size.height - RULER_HEIGHT * ZOOM}
