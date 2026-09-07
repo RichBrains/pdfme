@@ -97,6 +97,7 @@ const DetailView = (props: DetailViewProps) => {
           {...props}
           changeSchemas={changeSchemasWithSameTypeSelection}
           options={options}
+          i18n={typedI18n}
         />
       ),
       Divider: () => (
