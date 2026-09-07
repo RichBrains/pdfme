@@ -221,6 +221,67 @@ describe('getDynamicTemplate', () => {
     });
   });
 
+
+  describe('Uploaded PDF backgrounds', () => {
+    const customTemplate: Template = {
+      schemas: template.schemas,
+      basePdf: 'data:application/pdf;base64,AA==',
+      layout: {
+        pages: [
+          {
+            margins: { top: padding, right: padding, bottom: padding, left: padding },
+            showMargins: true,
+            grid: { visible: false, snap: false, spacing: 5, unit: 'mm' },
+            horizontalGuides: [],
+            verticalGuides: [],
+          },
+        ],
+      },
+    };
+
+    const createCustomArg = (increaseHeights: number[]) => ({
+      template: customTemplate,
+      input,
+      options,
+      _cache: new Map(),
+      pageSizes: [{ width: 100, height: 100 }],
+      getDynamicHeights: async (_value: string, args: { schema: Schema }) =>
+        args.schema.type === 'a'
+          ? Promise.resolve(increaseHeights)
+          : Promise.resolve([args.schema.height]),
+    });
+
+    test('reflows fields on templates that use an uploaded PDF', async () => {
+      const dynamicTemplate = await getDynamicTemplate(createCustomArg([10, 10, 10]));
+
+      expect(dynamicTemplate.schemas.length).toBe(1);
+      expect(dynamicTemplate.schemas[0][0].height).toBe(30);
+      // 'b' is pushed down by the extra height of 'a'.
+      expect(dynamicTemplate.schemas[0][1].position.y).toBe(bPositionY + 20);
+    });
+
+    test('expands in place instead of adding pages for uploaded PDFs', async () => {
+      const dynamicTemplate = await getDynamicTemplate(createCustomArg([40, 40, 40]));
+
+      // A continuation page has no background artwork, so the page count is kept.
+      expect(dynamicTemplate.schemas.length).toBe(1);
+      expect(dynamicTemplate.schemas[0][0].height).toBe(120);
+    });
+
+    test('keeps the template untouched when page sizes are unknown', async () => {
+      const { pageSizes: _pageSizes, ...argWithoutPageSizes } = createCustomArg([10, 10, 10]);
+      const dynamicTemplate = await getDynamicTemplate(argWithoutPageSizes);
+
+      expect(dynamicTemplate).toBe(customTemplate);
+    });
+
+    test('preserves the layout settings of the template', async () => {
+      const dynamicTemplate = await getDynamicTemplate(createCustomArg([10, 10, 10]));
+
+      expect(dynamicTemplate.layout).toEqual(customTemplate.layout);
+    });
+  });
+
   describe('Edge cases', () => {
     test('should preserve explicit blank pages', async () => {
       const blankTemplate: Template = {

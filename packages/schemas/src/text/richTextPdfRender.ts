@@ -13,6 +13,7 @@ import {
   VERTICAL_ALIGN_TOP,
 } from './constants.js';
 import { getFontDescentInPt, heightOfFontAtSize, widthOfTextAtSize } from './helper.js';
+import { getLineStartIndentPt, getLineWidthPt, getParagraphIndent } from './indent.js';
 import { addUriLinkAnnotation, type LinkAnnotationRect } from './linkAnnotation.js';
 import { parseInlineMarkdown } from './inlineMarkdown.js';
 import { applyTextLineRange } from './measure.js';
@@ -305,14 +306,21 @@ export const renderInlineMarkdownText = async (arg: {
   } = arg;
   const richTextRuns = parseInlineMarkdown(value);
   const resolvedRuns = await resolveRichTextRuns({ runs: richTextRuns, schema, font, _cache });
+  const paragraphIndent = getParagraphIndent(schema);
   const allLines = layoutRichTextLines({
     runs: resolvedRuns,
     fontSize,
     characterSpacing,
     boxWidthInPt: width,
+    paragraphIndent,
   });
   const lineRange = getTextLineRange(schema);
   const lines = applyTextLineRange(allLines, lineRange);
+  // A line starts a paragraph when it is first or follows a hard break.
+  const allParagraphStarts = allLines.map(
+    (_, index) => index === 0 || Boolean(allLines[index - 1].hardBreak),
+  );
+  const paragraphStarts = applyTextLineRange(allParagraphStarts, lineRange);
   const lineRangeStart = lineRange?.start ?? 0;
   const pdfFontObj = await embedFontsForRuns(
     lines.flatMap((line) => line.runs),
@@ -340,6 +348,9 @@ export const renderInlineMarkdownText = async (arg: {
   lines.forEach((line, rowIndex) => {
     if (line.runs.length === 0) return;
 
+    const isParagraphStart = paragraphStarts[rowIndex] ?? true;
+    const lineIndentOffset = getLineStartIndentPt(paragraphIndent, isParagraphStart);
+    const lineWidth = getLineWidthPt(paragraphIndent, width, isParagraphStart);
     let textWidth = line.width;
     let spacing = characterSpacing;
     const shouldJustify =
@@ -348,16 +359,16 @@ export const renderInlineMarkdownText = async (arg: {
     if (shouldJustify) {
       const graphemeCount = countRichTextLineGraphemes(line);
       if (graphemeCount > 0) {
-        spacing += (width - textWidth) / graphemeCount;
-        textWidth = width;
+        spacing += (lineWidth - textWidth) / graphemeCount;
+        textWidth = lineWidth;
       }
     }
 
-    let xLine = x;
+    let xLine = x + lineIndentOffset;
     if (alignment === 'center') {
-      xLine += (width - textWidth) / 2;
+      xLine += (lineWidth - textWidth) / 2;
     } else if (alignment === 'right') {
-      xLine += width - textWidth;
+      xLine += lineWidth - textWidth;
     }
 
     const yLine = y + height - yOffset - lineHeight * fontSize * rowIndex;

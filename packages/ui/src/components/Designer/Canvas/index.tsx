@@ -22,8 +22,9 @@ import {
   isOutsideContentBounds,
   getTemplateContentBounds,
   replacePlaceholders,
+  Font,
 } from '@pdfme/common';
-import { PluginsRegistry } from '../../../contexts.js';
+import { CacheContext, FontContext, I18nContext, PluginsRegistry } from '../../../contexts.js';
 import { X } from 'lucide-react';
 import { RULER_HEIGHT, RIGHT_SIDEBAR_WIDTH, DESIGNER_CLASSNAME } from '../../../constants.js';
 import { usePrevious } from '../../../hooks.js';
@@ -36,7 +37,10 @@ import Guides from './Guides.js';
 import Mask from './Mask.js';
 import Padding from './Padding.js';
 import Grid from './Grid.js';
-import { getLayoutSnapTargets } from './layoutSnap.js';
+import { getLayoutSnapTargets, getSnapFeedback } from './layoutSnap.js';
+import { getLiveTextReflowChanges, type SchemaChange } from './liveTextReflow.js';
+import { getDynamicLayoutForSchema, isDynamicLayoutSchema } from '@pdfme/schemas/dynamicLayout';
+import IndentMarkers, { isTextIndentSchema } from './IndentMarkers.js';
 import StaticSchema from '../../StaticSchema.js';
 
 const mm2px = (mm: number) => mm * 3.7795275591;
@@ -100,7 +104,10 @@ interface GuidesInterface {
 interface Props {
   basePdf: BasePdf;
   template: Template;
-  onChangePageLayout: (pageIndex: number, update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>) => void;
+  onChangePageLayout: (
+    pageIndex: number,
+    update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>,
+  ) => void;
   height: number;
   hoveringSchemaId: string | null;
   onChangeHoveringSchemaId: (id: string | null) => void;
@@ -142,6 +149,9 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   } = props;
   const { token } = theme.useToken();
   const pluginsRegistry = useContext(PluginsRegistry);
+  const i18n = useContext(I18nContext);
+  const font = useContext(FontContext);
+  const cache = useContext(CacheContext);
   const verticalGuides = useRef<GuidesInterface[]>([]);
   const horizontalGuides = useRef<GuidesInterface[]>([]);
   const moveable = useRef<MoveableComponent>(null);
@@ -150,6 +160,11 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const [isPressShiftKey, setIsPressShiftKey] = useState(false);
   const [isPressAltKey, setIsPressAltKey] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [snapFeedback, setSnapFeedback] = useState<string | null>(null);
+  const reflowRequestRef = useRef(0);
+  const reflowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTextChangesRef = useRef<SchemaChange[]>([]);
+  const pendingTextReflowRef = useRef<{ schema: SchemaForUI; value: string } | null>(null);
 
   const prevSchemas = usePrevious(schemasList[pageCursor]);
 
@@ -200,9 +215,16 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const onDrag = ({ target, top, left }: OnDrag) => {
     target.style.top = `${top}px`;
     target.style.left = `${left}px`;
+    updateSnapFeedback({
+      top,
+      left,
+      width: fmt4Num(target.style.width),
+      height: fmt4Num(target.style.height),
+    });
   };
 
   const onDragEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
+    setSnapFeedback(null);
     const { top, left } = target.style;
     changeSchemas([
       { key: 'position.y', value: fmt(top), schemaId: target.id },
@@ -211,6 +233,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   };
 
   const onDragEnds = ({ targets }: { targets: (HTMLElement | SVGElement)[] }) => {
+    setSnapFeedback(null);
     const arg = targets.map(({ style: { top, left }, id }) => [
       { key: 'position.y', value: fmt(top), schemaId: id },
       { key: 'position.x', value: fmt(left), schemaId: id },
@@ -239,6 +262,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   };
 
   const onResizeEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
+    setSnapFeedback(null);
     const { id, style } = target;
     const { width, height, top, left } = style;
     changeSchemas([
@@ -259,6 +283,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   };
 
   const onResizeEnds = ({ targets }: { targets: (HTMLElement | SVGElement)[] }) => {
+    setSnapFeedback(null);
     const arg = targets.map(({ style: { width, height, top, left }, id }) => [
       { key: 'width', value: fmt(width), schemaId: id },
       { key: 'height', value: fmt(height), schemaId: id },
@@ -275,15 +300,158 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     const oldHeight = fmt4Num(style.height);
     const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
     const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - height : 0);
-    Object.assign(style, { width: `${width}px`, height: `${height}px`, left: `${left}px`, top: `${top}px` });
+    Object.assign(style, {
+      width: `${width}px`,
+      height: `${height}px`,
+      left: `${left}px`,
+      top: `${top}px`,
+    });
+    updateSnapFeedback({ top, left, width, height });
   };
 
   const pageLayout = getPageLayout(template, pageCursor);
-  const snapTargets = useMemo(() => getLayoutSnapTargets({
-    template, pageIndex: pageCursor, pageSize: pageSizes[pageCursor], schemas: schemasList[pageCursor] || [], selectedIds: activeElements.map((element) => element.id),
-  }), [template, pageCursor, pageSizes, schemasList, activeElements]);
+  // Page sizes are resolved asynchronously for uploaded PDFs, so they can be
+  // missing on the first render.
+  const currentPageSize = pageSizes[pageCursor] ?? { width: 0, height: 0 };
+  const contentBounds = useMemo(
+    () => getTemplateContentBounds(template, pageCursor, currentPageSize),
+    [template, pageCursor, currentPageSize],
+  );
+  const snapTargets = useMemo(
+    () =>
+      getLayoutSnapTargets({
+        template,
+        pageIndex: pageCursor,
+        pageSize: currentPageSize,
+        schemas: schemasList[pageCursor] || [],
+        selectedIds: activeElements.map((element) => element.id),
+      }),
+    [template, pageCursor, currentPageSize, schemasList, activeElements],
+  );
+  const updateSnapFeedback = ({
+    top,
+    left,
+    width,
+    height,
+  }: {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  }) => {
+    const feedback = getSnapFeedback({
+      targets: snapTargets.targets,
+      gridSpacing: snapTargets.gridSpacing,
+      frame: { top: top / ZOOM, left: left / ZOOM, width: width / ZOOM, height: height / ZOOM },
+    });
+    setSnapFeedback(feedback ? i18n(feedback.key) : null);
+  };
+
+  const selectedSchema = schemasList[pageCursor]?.find(
+    (schema) => schema.id === activeElements[0]?.id,
+  );
+
+  const applyLiveTextReflow = async ({
+    schema,
+    value,
+    requestId,
+    commit,
+  }: {
+    schema: SchemaForUI;
+    value: string;
+    requestId: number;
+    commit: boolean;
+  }) => {
+    try {
+      const result = await getDynamicLayoutForSchema(value, {
+        schema,
+        basePdf,
+        options: { font } as { font: Font },
+        _cache: cache,
+        pageSize: currentPageSize,
+        margins: pageLayout.margins,
+      });
+      if (requestId !== reflowRequestRef.current) return;
+      const layout = Array.isArray(result) ? { heights: result } : result;
+      const measuredHeight = layout.heights.reduce((total, item) => total + item, 0);
+      const patch =
+        layout.patchSplitSchema?.({
+          schema,
+          start: 0,
+          end: layout.heights.length,
+          isSplit: false,
+          chunkHeight: measuredHeight,
+        }) ?? {};
+      const changes = [
+        { key: 'content', value, schemaId: schema.id },
+        ...getLiveTextReflowChanges({
+          schemas: schemasList[pageCursor] || [],
+          schema,
+          width: typeof patch.width === 'number' ? patch.width : undefined,
+          height: measuredHeight,
+        }),
+      ];
+      pendingTextReflowRef.current = null;
+      if (commit) {
+        pendingTextChangesRef.current = [];
+        changeSchemas(changes);
+        return;
+      }
+      pendingTextChangesRef.current = changes;
+      changes.forEach(({ key, value: changeValue, schemaId }) => {
+        const element = document.getElementById(schemaId);
+        if (!(element instanceof HTMLElement)) return;
+        if (key === 'width' || key === 'height')
+          element.style[key] = `${Number(changeValue) * ZOOM}px`;
+        if (key === 'position.y') element.style.top = `${Number(changeValue) * ZOOM}px`;
+      });
+      moveable.current?.updateRect();
+    } catch (error) {
+      if (requestId === reflowRequestRef.current) {
+        pendingTextReflowRef.current = null;
+        if (commit) flushPendingContentChange();
+      }
+      console.error('[@pdfme/ui] live text reflow failed', error);
+    }
+  };
+
+  const flushPendingContentChange = () => {
+    const changes = pendingTextChangesRef.current;
+    pendingTextChangesRef.current = [];
+    if (changes.length) changeSchemas(changes);
+  };
+
+  const flushPendingTextChanges = () => {
+    if (reflowTimerRef.current) {
+      clearTimeout(reflowTimerRef.current);
+      reflowTimerRef.current = null;
+    }
+    const pendingReflow = pendingTextReflowRef.current;
+    if (pendingReflow) {
+      const requestId = ++reflowRequestRef.current;
+      void applyLiveTextReflow({ ...pendingReflow, requestId, commit: true });
+      return;
+    }
+    flushPendingContentChange();
+  };
+
+  const queueLiveTextReflow = (schema: SchemaForUI, value: string) => {
+    pendingTextChangesRef.current = [{ key: 'content', value, schemaId: schema.id }];
+    if (!isDynamicLayoutSchema(schema)) return;
+    pendingTextReflowRef.current = { schema, value };
+    const requestId = ++reflowRequestRef.current;
+    if (reflowTimerRef.current) clearTimeout(reflowTimerRef.current);
+    reflowTimerRef.current = setTimeout(() => {
+      reflowTimerRef.current = null;
+      void applyLiveTextReflow({ schema, value, requestId, commit: false });
+    }, 150);
+  };
+
   const setGuides = (axis: 'horizontalGuides' | 'verticalGuides', guides: number[]) =>
-    onChangePageLayout(pageCursor, (layout) => ({ ...layout, [axis]: guides.map((position) => ({ position })) }));
+    onChangePageLayout(pageCursor, (layout) => ({
+      ...layout,
+      [axis]: guides.map((position) => ({ position })),
+    }));
 
   const onClickMoveable = () => {
     // Just set editing to true without trying to access event properties
@@ -363,6 +531,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           if (!isClick && removed.length > 0) {
             newActiveElements = activeElements.filter((ae) => !removed.includes(ae));
           }
+          if (newActiveElements !== activeElements) flushPendingTextChanges();
           onEdit(newActiveElements);
 
           if (newActiveElements != activeElements) {
@@ -389,7 +558,29 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
             {!editing && activeElements.length > 0 && pageCursor === index && (
               <DeleteButton activeElements={activeElements} controlScale={controlScale} />
             )}
-            <Grid grid={getPageLayout(template, index).grid} pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }} />
+            {snapFeedback && pageCursor === index && activeElements[0] && (
+              <div
+                aria-live="polite"
+                style={{
+                  position: 'absolute',
+                  zIndex: 6,
+                  left: fmt4Num(activeElements[0].style.left),
+                  top: fmt4Num(activeElements[0].style.top) - 24,
+                  padding: '2px 6px',
+                  borderRadius: 3,
+                  color: token.colorWhite,
+                  background: token.colorPrimary,
+                  fontSize: 11,
+                  pointerEvents: 'none',
+                }}
+              >
+                {snapFeedback}
+              </div>
+            )}
+            <Grid
+              grid={getPageLayout(template, index).grid}
+              pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }}
+            />
             <Padding template={template} pageIndex={index} />
             <StaticSchema
               template={{ schemas: schemasList, basePdf }}
@@ -413,6 +604,18 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
               onChangeHorizontalGuides={(guides) => setGuides('horizontalGuides', guides)}
               onChangeVerticalGuides={(guides) => setGuides('verticalGuides', guides)}
             />
+            {pageCursor === index &&
+              activeElements.length === 1 &&
+              isTextIndentSchema(selectedSchema) && (
+                <IndentMarkers
+                  schema={selectedSchema}
+                  paperElement={paperRefs.current[index]}
+                  scale={scale}
+                  onChange={(key, value) =>
+                    changeSchemas([{ key, value: round(value, 2), schemaId: selectedSchema.id }])
+                  }
+                />
+              )}
             {pageCursor !== index ? (
               <Mask
                 width={paperSize.width + RULER_HEIGHT}
@@ -427,8 +630,14 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                   bounds={{ left: 0, top: 0, bottom: paperSize.height, right: paperSize.width }}
                   horizontalGuidelines={snapTargets.horizontal.map((position) => position * ZOOM)}
                   verticalGuidelines={snapTargets.vertical.map((position) => position * ZOOM)}
-                  elementGuidelines={schemasList[pageCursor].filter((schema) => !activeElements.some((element) => element.id === schema.id)).map((schema) => document.getElementById(schema.id)).filter((element): element is HTMLElement => element instanceof HTMLElement)}
+                  elementGuidelines={schemasList[pageCursor]
+                    .filter((schema) => !activeElements.some((element) => element.id === schema.id))
+                    .map((schema) => document.getElementById(schema.id))
+                    .filter((element): element is HTMLElement => element instanceof HTMLElement)}
                   snapEnabled={!isPressAltKey}
+                  snapGridSize={
+                    snapTargets.gridSpacing ? snapTargets.gridSpacing * ZOOM : undefined
+                  }
                   keepRatio={isPressShiftKey}
                   rotatable={rotatable}
                   onDrag={onDrag}
@@ -485,17 +694,27 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                       // Use type assertion to safely handle the argument
                       type ChangeArg = { key: string; value: unknown };
                       const args = Array.isArray(arg) ? (arg as ChangeArg[]) : [arg as ChangeArg];
-                      changeSchemas(
-                        args.map(({ key, value }) => ({ key, value, schemaId: schema.id })),
-                      );
+                      const contentChange = args.find(({ key }) => key === 'content');
+                      if (contentChange && typeof contentChange.value === 'string') {
+                        queueLiveTextReflow(schema, contentChange.value);
+                      }
+                      const nonContentChanges = args
+                        .filter(({ key }) => key !== 'content')
+                        .map(({ key, value }) => ({ key, value, schemaId: schema.id }));
+                      if (nonContentChanges.length) changeSchemas(nonContentChanges);
                     }
                   : undefined
               }
-              stopEditing={() => setEditing(false)}
-              outline={`1px ${isOutsideContentBounds(schema, getTemplateContentBounds(template, pageCursor, pageSizes[pageCursor])) ? 'solid' : hoveringSchemaId === schema.id ? 'solid' : 'dashed'} ${
-                isOutsideContentBounds(schema, getTemplateContentBounds(template, pageCursor, pageSizes[pageCursor]))
+              stopEditing={() => {
+                flushPendingTextChanges();
+                setEditing(false);
+              }}
+              outline={`1px ${isOutsideContentBounds(schema, contentBounds) ? 'solid' : hoveringSchemaId === schema.id ? 'solid' : 'dashed'} ${
+                isOutsideContentBounds(schema, contentBounds)
                   ? token.colorWarning
-                  : schema.readOnly && hoveringSchemaId !== schema.id ? 'transparent' : token.colorPrimary
+                  : schema.readOnly && hoveringSchemaId !== schema.id
+                    ? 'transparent'
+                    : token.colorPrimary
               }`}
               scale={renderScale}
             />

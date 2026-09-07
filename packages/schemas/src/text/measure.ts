@@ -6,6 +6,7 @@ import {
   getFontKitFont,
   heightOfFontAtSize,
   splitTextToSize,
+  widthOfTextAtSize,
 } from './helper.js';
 import { parseInlineMarkdown } from './inlineMarkdown.js';
 import {
@@ -16,9 +17,11 @@ import {
   type RichTextLine,
 } from './richText.js';
 import type { TextSchema } from './types.js';
+import { getLineStartIndentMm, getParagraphIndent } from './indent.js';
 import { getTextLineRange } from '../splitRange.js';
 import {
   getBoxContentArea,
+  getBoxHorizontalInset,
   getBoxInsets,
   getBoxVerticalInset,
   getSplitBoxDimension,
@@ -87,6 +90,7 @@ export const measureTextLines = async ({
       fontSize: resolvedFontSize,
       characterSpacing,
       boxWidthInPt,
+      paragraphIndent: getParagraphIndent(schema),
     });
 
     return {
@@ -110,6 +114,7 @@ export const measureTextLines = async ({
     fontSize: resolvedFontSize,
     fontKitFont,
     boxWidthInPt,
+    paragraphIndent: getParagraphIndent(schema),
   });
 
   return {
@@ -145,6 +150,41 @@ export const mergeTextLineRangeValue = async ({
   const nextLines = [...lines];
   nextLines.splice(start, end - start, ...splitReplacementTextToLines(replacement));
   return plainTextLinesToValue(nextLines);
+};
+
+/**
+ * Natural content width (mm) of the value: the widest paragraph rendered without
+ * wrapping, plus paragraph indentation and box insets. Used by auto-width text.
+ */
+export const measureTextWidth = async ({
+  value,
+  schema,
+  font = getDefaultFont(),
+  _cache = new Map<string | number, unknown>(),
+}: MeasureTextHeightArgs): Promise<number> => {
+  const fontSize = schema.fontSize ?? DEFAULT_FONT_SIZE;
+  const characterSpacing = schema.characterSpacing ?? DEFAULT_CHARACTER_SPACING;
+  const fontKitFont = await getFontKitFont(
+    schema.fontName,
+    font,
+    _cache as Map<string, FontKitFont>,
+  );
+  const indent = getParagraphIndent(schema);
+  // Without wrapping every paragraph consists of its first line only, so all of
+  // them carry the first-line indent.
+  const indentInPt = mm2pt(getLineStartIndentMm(indent, true));
+  const widestParagraphInPt = value
+    .split(/\r\n|\r|\n|\f|\v/g)
+    .reduce(
+      (widest, paragraph) =>
+        Math.max(
+          widest,
+          widthOfTextAtSize(paragraph, fontKitFont, fontSize, characterSpacing) + indentInPt,
+        ),
+      0,
+    );
+
+  return pt2mm(widestParagraphInPt) + indent.right + getBoxHorizontalInset(schema);
 };
 
 export const measureTextHeight = async (args: MeasureTextHeightArgs): Promise<number> => {

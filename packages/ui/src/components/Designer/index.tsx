@@ -255,7 +255,11 @@ const TemplateEditor = ({
   }, [displayScale]);
 
   const getHistorySnapshot = useCallback(
-    (): HistorySnapshot => ({ schemasList: cloneDeep(schemasList), basePdf: template.basePdf, layout: cloneDeep(template.layout) }),
+    (): HistorySnapshot => ({
+      schemasList: cloneDeep(schemasList),
+      basePdf: template.basePdf,
+      layout: cloneDeep(template.layout),
+    }),
     [schemasList, template.basePdf, template.layout],
   );
 
@@ -266,17 +270,30 @@ const TemplateEditor = ({
       const _schemasList = cloneDeep(schemasList);
       _schemasList[pageCursor] = newSchemas;
       setSchemasList(_schemasList);
-      onChangeTemplate({ ...schemasList2template(_schemasList, template.basePdf), layout: template.layout });
+      onChangeTemplate({
+        ...schemasList2template(_schemasList, template.basePdf),
+        layout: template.layout,
+      });
     },
     [getHistorySnapshot, template, schemasList, pageCursor, onChangeTemplate],
   );
 
   const onChangePageLayout = useCallback(
-    (targetPageIndex: number, update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>) => {
+    (
+      targetPageIndex: number,
+      update: (layout: ReturnType<typeof getPageLayout>) => ReturnType<typeof getPageLayout>,
+    ) => {
       future.current = [];
       past.current.push(getHistorySnapshot());
-      const pages = schemasList.map((_, index) => index === targetPageIndex ? update(getPageLayout(template, index)) : getPageLayout(template, index));
-      onChangeTemplate({ ...schemasList2template(schemasList, template.basePdf), layout: { pages } });
+      const pages = schemasList.map((_, index) =>
+        index === targetPageIndex
+          ? update(getPageLayout(template, index))
+          : getPageLayout(template, index),
+      );
+      onChangeTemplate({
+        ...schemasList2template(schemasList, template.basePdf),
+        layout: { pages },
+      });
     },
     [getHistorySnapshot, onChangeTemplate, schemasList, template],
   );
@@ -318,7 +335,10 @@ const TemplateEditor = ({
     setSchemasList,
     onTimeTravel: (snapshot) => {
       setSchemasList(snapshot.schemasList);
-      onChangeTemplate({ ...schemasList2template(snapshot.schemasList, snapshot.basePdf), layout: snapshot.layout });
+      onChangeTemplate({
+        ...schemasList2template(snapshot.schemasList, snapshot.basePdf),
+        layout: snapshot.layout,
+      });
       onEditEnd();
     },
     onEdit,

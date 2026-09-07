@@ -30,6 +30,7 @@ import {
   isFirefox,
   splitTextToSize,
 } from './helper.js';
+import { getParagraphIndent } from './indent.js';
 import { parseInlineMarkdown, stripInlineMarkdown } from './inlineMarkdown.js';
 import { applyTextLineRange, plainTextLinesToValue } from './measure.js';
 import { shouldUseDynamicFontSize } from './overflow.js';
@@ -341,6 +342,7 @@ const getRangedPlainTextValue = (arg: {
       fontSize,
       fontKitFont,
       boxWidthInPt: mm2pt(getBoxContentArea(schema).width),
+      paragraphIndent: getParagraphIndent(schema),
     }),
     lineRange,
   );
@@ -421,6 +423,28 @@ export const buildStyledTextContainer = (
   if (schema.strikethrough) textDecorations.push('line-through');
   if (schema.underline) textDecorations.push('underline');
 
+  const paragraphIndent = getParagraphIndent(schema);
+  // The editor mirrors the PDF paragraph geometry with CSS: the leading inset is
+  // padding, and the first-line/hanging offset is a text-indent on top of it.
+  const firstLineOffset =
+    paragraphIndent.mode === 'firstLine'
+      ? paragraphIndent.special
+      : paragraphIndent.mode === 'hanging'
+        ? -paragraphIndent.special
+        : 0;
+  const paragraphIndentStyle: CSS.Properties = {
+    ...(paragraphIndent.left !== 0 || paragraphIndent.mode === 'hanging'
+      ? {
+          paddingLeft: `${paragraphIndent.left + (paragraphIndent.mode === 'hanging' ? paragraphIndent.special : 0)}mm`,
+        }
+      : {}),
+    ...(paragraphIndent.right !== 0 ? { paddingRight: `${paragraphIndent.right}mm` } : {}),
+    ...(firstLineOffset !== 0 ? { textIndent: `${firstLineOffset}mm` } : {}),
+    ...(paragraphIndent.left !== 0 || paragraphIndent.right !== 0 || firstLineOffset !== 0
+      ? { boxSizing: 'border-box' }
+      : {}),
+  };
+
   const textBlockStyle: CSS.Properties = {
     // Font formatting styles
     fontFamily: schema.fontName ? `'${schema.fontName}'` : 'inherit',
@@ -442,6 +466,7 @@ export const buildStyledTextContainer = (
     // Browsers include the final letter-spacing in editable text wrapping, unlike PDF rendering.
     ...(editable && characterSpacing > 0 ? { width: `calc(100% + ${characterSpacing}pt)` } : {}),
     ...(isTopAligned ? { height: '100%' } : {}),
+    ...paragraphIndentStyle,
   };
 
   const textBlock = document.createElement('div');

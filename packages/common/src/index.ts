@@ -32,6 +32,11 @@ import type {
   BasePdf,
   BlankPdf,
   CustomPdf,
+  PageMargins,
+  GridSettings,
+  RulerGuide,
+  PageLayoutSettings,
+  TemplateLayout,
   Template,
   CommonOptions,
   GeneratorOptions,
@@ -83,6 +88,24 @@ import {
 } from './helper.js';
 import { PAGE_SIZE_PRESETS, detectPaperSize, resolvePageSize } from './pageSize.js';
 import { getDynamicTemplate } from './dynamicTemplate.js';
+import {
+  DEFAULT_GRID_SPACING_MM,
+  getDefaultGridSettings,
+  getDefaultPageMargins,
+  getDefaultPageLayout,
+  getPageLayout,
+  getPageMargins,
+  normalizeTemplateLayout,
+  getGridSpacingMm,
+  getGridSpacingPt,
+  getContentBounds,
+  getTemplateContentBounds,
+  isOutsideContentBounds,
+  clampToContentBounds,
+  snapValueToGrid,
+  getGridLinePositions,
+  getGuidePositions,
+} from './layout.js';
 import { createDynamicLayoutSplitRange, getDynamicLayoutSplitRange } from './splitRange.js';
 import { replacePlaceholders } from './expression.js';
 import { pluginRegistry } from './pluginRegistry.js';
@@ -134,7 +157,25 @@ export {
   resolvePageSize,
   createDynamicLayoutSplitRange,
   getDynamicLayoutSplitRange,
+  DEFAULT_GRID_SPACING_MM,
+  getDefaultGridSettings,
+  getDefaultPageMargins,
+  getDefaultPageLayout,
+  getPageLayout,
+  getPageMargins,
+  normalizeTemplateLayout,
+  getGridSpacingMm,
+  getGridSpacingPt,
+  getContentBounds,
+  getTemplateContentBounds,
+  isOutsideContentBounds,
+  clampToContentBounds,
+  snapValueToGrid,
+  getGridLinePositions,
+  getGuidePositions,
 };
+
+export type { ContentBounds } from './layout.js';
 
 export type {
   Lang,
@@ -149,6 +190,11 @@ export type {
   BasePdf,
   BlankPdf,
   CustomPdf,
+  PageMargins,
+  GridSettings,
+  RulerGuide,
+  PageLayoutSettings,
+  TemplateLayout,
   Template,
   CommonOptions,
   GeneratorOptions,

@@ -29,6 +29,12 @@ import {
   widthOfTextAtSize,
   splitTextToSize,
 } from './helper.js';
+import {
+  getLineStartIndentPt,
+  getLineWidthPt,
+  getParagraphIndent,
+  getParagraphLineStarts,
+} from './indent.js';
 import { stripInlineMarkdown } from './inlineMarkdown.js';
 import { applyTextLineRange } from './measure.js';
 import { calculateDynamicRichTextFontSize, isInlineMarkdownTextSchema } from './richText.js';
@@ -215,16 +221,19 @@ export const pdfRender = async (arg: PDFRenderProps<TextSchema>) => {
   const descent = getFontDescentInPt(fontKitFont, fontSize);
   const halfLineHeightAdjustment = lineHeight === 0 ? 0 : ((lineHeight - 1) * fontSize) / 2;
 
-  const lines = applyTextLineRange(
-    splitTextToSize({
-      value,
-      characterSpacing,
-      fontSize,
-      fontKitFont,
-      boxWidthInPt: contentWidth,
-    }),
-    getTextLineRange(schema),
-  );
+  const paragraphIndent = getParagraphIndent(schema);
+  const allLines = splitTextToSize({
+    value,
+    characterSpacing,
+    fontSize,
+    fontKitFont,
+    boxWidthInPt: contentWidth,
+    paragraphIndent,
+  });
+  const allParagraphStarts = getParagraphLineStarts(allLines);
+  const lineRange = getTextLineRange(schema);
+  const lines = applyTextLineRange(allLines, lineRange);
+  const paragraphStarts = applyTextLineRange(allParagraphStarts, lineRange);
   const needsTextWidth = alignment !== 'left' || Boolean(schema.strikethrough || schema.underline);
   const needsTextHeight = Boolean(schema.strikethrough || schema.underline);
 
@@ -245,6 +254,9 @@ export const pdfRender = async (arg: PDFRenderProps<TextSchema>) => {
   }
 
   lines.forEach((line, rowIndex) => {
+    const isParagraphStart = paragraphStarts[rowIndex] ?? true;
+    const lineIndentOffset = getLineStartIndentPt(paragraphIndent, isParagraphStart);
+    const lineWidth = getLineWidthPt(paragraphIndent, contentWidth, isParagraphStart);
     const trimmed = line.replace('\n', '');
     const textWidth = needsTextWidth
       ? widthOfTextAtSize(trimmed, fontKitFont, fontSize, characterSpacing)
@@ -258,11 +270,11 @@ export const pdfRender = async (arg: PDFRenderProps<TextSchema>) => {
       line = '\r\n';
     }
 
-    let xLine = contentX;
+    let xLine = contentX + lineIndentOffset;
     if (alignment === 'center') {
-      xLine += (contentWidth - textWidth) / 2;
+      xLine += (lineWidth - textWidth) / 2;
     } else if (alignment === 'right') {
-      xLine += contentWidth - textWidth;
+      xLine += lineWidth - textWidth;
     }
 
     let yLine = contentY + contentHeight - yOffset - rowYOffset;
@@ -307,7 +319,7 @@ export const pdfRender = async (arg: PDFRenderProps<TextSchema>) => {
       const segmenter = getGraphemeSegmenter();
       const iterator = segmenter.segment(trimmed)[Symbol.iterator]();
       const len = Array.from(iterator).length;
-      spacing += (contentWidth - textWidth) / len;
+      spacing += (lineWidth - textWidth) / len;
     }
     page.pushOperators(pdfLib.setCharacterSpacing(spacing));
 

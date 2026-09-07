@@ -1,18 +1,18 @@
-import { isBlankPdf, type BasePdf } from '@pdfme/common';
+import type { BasePdf } from '@pdfme/common';
 import { TEXT_OVERFLOW_EXPAND } from './constants.js';
 import type { TextSchema } from './types.js';
 
-const TEXT_OVERFLOW_EXPAND_SCHEMA_TYPES = new Set(['text', 'multiVariableText']);
-
 type TextOverflowSchema = Pick<TextSchema, 'overflow'> & Partial<Pick<TextSchema, 'type'>>;
 
-const isTextOverflowExpandSchema = (schema: Partial<Pick<TextSchema, 'type'>>) =>
-  schema.type === undefined || TEXT_OVERFLOW_EXPAND_SCHEMA_TYPES.has(schema.type);
-
+/**
+ * Height expansion is background independent: it works on blank templates and
+ * on templates that use an uploaded PDF as background.
+ * Parameters are retained for API compatibility and future per-background policies.
+ */
 export const canUseTextOverflowExpand = (
-  schema: Partial<Pick<TextSchema, 'type'>>,
-  basePdf?: BasePdf,
-) => !isTextOverflowExpandSchema(schema) || basePdf === undefined || isBlankPdf(basePdf);
+  _schema: Partial<Pick<TextSchema, 'type'>>,
+  _basePdf?: BasePdf,
+) => true;
 
 export const isTextOverflowExpand = (schema: TextOverflowSchema, basePdf?: BasePdf) =>
   canUseTextOverflowExpand(schema, basePdf) && schema.overflow === TEXT_OVERFLOW_EXPAND;

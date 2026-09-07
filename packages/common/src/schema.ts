@@ -119,6 +119,46 @@ export const Dict = z.object({
   'schemas.list.itemSpacing': z.string(),
   'schemas.list.addItem': z.string(),
   'schemas.list.removeItem': z.string(),
+  layout: z.string(),
+  layoutShowMargins: z.string(),
+  layoutShowGrid: z.string(),
+  layoutSnapToGrid: z.string(),
+  layoutGridSpacing: z.string(),
+  layoutGridUnit: z.string(),
+  layoutMarginTop: z.string(),
+  layoutMarginRight: z.string(),
+  layoutMarginBottom: z.string(),
+  layoutMarginLeft: z.string(),
+  layoutAlignTo: z.string(),
+  layoutAlignToSelection: z.string(),
+  layoutAlignToPage: z.string(),
+  layoutAlignToContent: z.string(),
+  layoutMoveIntoContent: z.string(),
+  layoutSnapMargin: z.string(),
+  layoutSnapGuide: z.string(),
+  layoutSnapGrid: z.string(),
+  layoutSnapField: z.string(),
+  layoutSnapPageCentre: z.string(),
+  layoutSnapPageEdge: z.string(),
+  'schemas.text.indent': z.string(),
+  'schemas.text.indentLeft': z.string(),
+  'schemas.text.indentRight': z.string(),
+  'schemas.text.indentSpecial': z.string(),
+  'schemas.text.indentNone': z.string(),
+  'schemas.text.indentFirstLine': z.string(),
+  'schemas.text.indentHanging': z.string(),
+  'schemas.text.indentBy': z.string(),
+  'schemas.text.widthMode': z.string(),
+  'schemas.text.heightMode': z.string(),
+  'schemas.text.sizeFixed': z.string(),
+  'schemas.text.sizeAuto': z.string(),
+  'schemas.text.sizeFill': z.string(),
+  'schemas.text.expansionBoundary': z.string(),
+  'schemas.text.boundaryPage': z.string(),
+  'schemas.text.boundaryMargin': z.string(),
+  'schemas.text.boundaryField': z.string(),
+  'schemas.text.boundaryManual': z.string(),
+  'schemas.text.boundaryOverlap': z.string(),
   'schemas.list.indentItem': z.string(),
   'schemas.list.outdentItem': z.string(),
 });
@@ -170,6 +210,44 @@ export const CustomPdf = z.union([z.string(), ArrayBufferSchema, Uint8ArraySchem
 
 export const BasePdf = z.union([CustomPdf, BlankPdf]);
 
+// Word-processing layout settings.
+// These live on the template (not on basePdf) so that blank templates and
+// templates using an uploaded PDF as background behave identically.
+export const PageMargins = z.object({
+  top: z.number(),
+  right: z.number(),
+  bottom: z.number(),
+  left: z.number(),
+});
+
+export const GridSettings = z.object({
+  visible: z.boolean(),
+  snap: z.boolean(),
+  /** Spacing expressed in `unit`. */
+  spacing: z.number().positive(),
+  unit: z.enum(['mm', 'pt']),
+});
+
+export const RulerGuide = z.object({
+  /** Position in mm from the top/left edge of the page. */
+  position: z.number(),
+  locked: z.boolean().optional(),
+});
+
+export const PageLayoutSettings = z.object({
+  margins: PageMargins,
+  showMargins: z.boolean(),
+  grid: GridSettings,
+  /** Guides running horizontally (snap on the y axis). */
+  horizontalGuides: z.array(RulerGuide),
+  /** Guides running vertically (snap on the x axis). */
+  verticalGuides: z.array(RulerGuide),
+});
+
+export const TemplateLayout = z.object({
+  pages: z.array(PageLayoutSettings),
+});
+
 // Legacy keyed structure for BC - we convert to SchemaPageArray on import
 export const LegacySchemaPageArray = z.array(z.record(z.string(), Schema));
 export const SchemaPageArray = z.array(z.array(Schema));
@@ -178,6 +256,7 @@ export const Template = z
   .object({
     schemas: SchemaPageArray,
     basePdf: BasePdf,
+    layout: TemplateLayout.optional(),
     pdfmeVersion: z.string().optional(),
   })
   .passthrough();

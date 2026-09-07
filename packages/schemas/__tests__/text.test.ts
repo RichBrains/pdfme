@@ -37,6 +37,21 @@ import {
 import { getDynamicLayoutForText } from '../src/text/dynamicTemplate.js';
 import { mergeTextLineRangeValue } from '../src/text/measure.js';
 import { shouldUseDynamicFontSize } from '../src/text/overflow.js';
+import { splitTextToSize } from '../src/text/helper.js';
+import { measureTextWidth } from '../src/text/measure.js';
+import {
+  getLineStartIndentMm,
+  getLineWidthMm,
+  getParagraphIndent,
+  getParagraphLineStarts,
+  hasParagraphIndent,
+} from '../src/text/indent.js';
+import {
+  getAvailableTextWidth,
+  getTextHeightMode,
+  getTextWidthMode,
+  resolveTextWidth,
+} from '../src/text/sizing.js';
 import { propPanel as textPropPanel } from '../src/text/propPanel.js';
 import { getDynamicLayoutForMultiVariableText } from '../src/multiVariableText/dynamicTemplate.js';
 
@@ -311,12 +326,16 @@ describe('text prop panel', () => {
     ]);
   });
 
-  it('hides overflow expand for custom basePdf', () => {
+  it('offers overflow expand for custom basePdf', () => {
+    // Height expansion is background independent: uploaded PDFs support it too.
     const schema = getTextPropPanelSchema({
       basePdf: 'data:application/pdf;base64,AA==' as BasePdf,
     });
 
-    expect(getOverflowOptionValues(schema)).toEqual([TEXT_OVERFLOW_VISIBLE]);
+    expect(getOverflowOptionValues(schema)).toEqual([
+      TEXT_OVERFLOW_VISIBLE,
+      TEXT_OVERFLOW_EXPAND,
+    ]);
   });
 
   it('keeps overflow expand available for text-derived schemas that do not use text expand', () => {
@@ -331,7 +350,7 @@ describe('text prop panel', () => {
     ]);
   });
 
-  it('keeps dynamic font size controls enabled when custom basePdf has stale overflow expand', () => {
+  it('disables dynamic font size controls when custom basePdf uses overflow expand', () => {
     const schema = getTextPropPanelSchema({
       basePdf: 'data:application/pdf;base64,AA==' as BasePdf,
       activeSchema: {
@@ -342,7 +361,8 @@ describe('text prop panel', () => {
     const dynamicFontSize = schema.dynamicFontSize as PropPanelSchema;
     const minFontSize = dynamicFontSize.properties?.min;
 
-    expect(minFontSize?.hidden).toBe(false);
+    // Expansion owns the height, so shrink-to-fit is not applicable.
+    expect(minFontSize?.hidden).toBe(true);
   });
 });
 
@@ -548,7 +568,7 @@ describe('text dynamic layout', () => {
     ).toBe(false);
   });
 
-  it('treats overflow expand as visible for custom basePdf dynamic font sizing', () => {
+  it('treats overflow expand as expanding for custom basePdf dynamic font sizing', () => {
     expect(
       shouldUseDynamicFontSize(
         {
@@ -558,7 +578,7 @@ describe('text dynamic layout', () => {
         },
         'data:application/pdf;base64,AA==' as BasePdf,
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('expands multiVariableText after substituting variables', async () => {
@@ -1186,5 +1206,218 @@ describe('filterEndJP', () => {
     const input = ['これは「', '文章「', 'です「'];
     const expected = ['これは', '「文章', '「です「'];
     expect(filterEndJP(input)).toEqual(expected);
+  });
+});
+
+
+describe('paragraph indentation', () => {
+  it('defaults to no indentation', () => {
+    const indent = getParagraphIndent(getTextSchema());
+
+    expect(indent).toEqual({ left: 0, right: 0, mode: 'none', special: 0 });
+    expect(hasParagraphIndent(indent)).toBe(false);
+  });
+
+  it('offsets only the first line for a first-line indent', () => {
+    const indent = getParagraphIndent({ leftIndent: 5, indentMode: 'firstLine', specialIndent: 10 });
+
+    expect(getLineStartIndentMm(indent, true)).toBe(15);
+    expect(getLineStartIndentMm(indent, false)).toBe(5);
+  });
+
+  it('offsets only the wrapped lines for a hanging indent', () => {
+    const indent = getParagraphIndent({ leftIndent: 5, indentMode: 'hanging', specialIndent: 10 });
+
+    expect(getLineStartIndentMm(indent, true)).toBe(5);
+    expect(getLineStartIndentMm(indent, false)).toBe(15);
+  });
+
+  it('supports a negative first-line offset (outdent)', () => {
+    const indent = getParagraphIndent({ leftIndent: 10, indentMode: 'firstLine', specialIndent: -5 });
+
+    expect(getLineStartIndentMm(indent, true)).toBe(5);
+    expect(getLineStartIndentMm(indent, false)).toBe(10);
+  });
+
+  it('reduces the usable line width by both indents', () => {
+    const indent = getParagraphIndent({
+      leftIndent: 10,
+      rightIndent: 5,
+      indentMode: 'firstLine',
+      specialIndent: 10,
+    });
+
+    expect(getLineWidthMm(indent, 100, true)).toBe(75);
+    expect(getLineWidthMm(indent, 100, false)).toBe(85);
+    expect(getLineWidthMm(indent, 5, true)).toBe(0);
+  });
+
+  it('marks paragraph starts from the line splitter output', () => {
+    expect(getParagraphLineStarts(['first', 'wrapped\n', 'second\n'])).toEqual([
+      true,
+      false,
+      true,
+    ]);
+  });
+
+  it('wraps the first line earlier when a first-line indent is set', async () => {
+    const fontKitFont = await getFontKitFont(undefined, getSampleFont(), new Map());
+    const args = {
+      value: 'one two three four five six seven eight nine ten',
+      characterSpacing: 0,
+      fontSize: 12,
+      fontKitFont,
+      boxWidthInPt: mm2pt(50),
+    };
+
+    const plain = splitTextToSize(args);
+    const indented = splitTextToSize({
+      ...args,
+      paragraphIndent: { left: 0, right: 0, mode: 'firstLine', special: 20 },
+    });
+
+    expect(indented[0].length).toBeLessThan(plain[0].length);
+    // Wrapped lines keep the full width, so only the first line is narrower.
+    expect(indented.join(' ').replace(/\s+/g, ' ').trim()).toContain('one two');
+  });
+
+  it('wraps wrapped lines earlier when a hanging indent is set', async () => {
+    const fontKitFont = await getFontKitFont(undefined, getSampleFont(), new Map());
+    const args = {
+      value: 'one two three four five six seven eight nine ten',
+      characterSpacing: 0,
+      fontSize: 12,
+      fontKitFont,
+      boxWidthInPt: mm2pt(50),
+    };
+
+    const plain = splitTextToSize(args);
+    const hanging = splitTextToSize({
+      ...args,
+      paragraphIndent: { left: 0, right: 0, mode: 'hanging', special: 20 },
+    });
+
+    expect(hanging[0]).toBe(plain[0]);
+    expect(hanging.length).toBeGreaterThanOrEqual(plain.length);
+  });
+});
+
+describe('text sizing modes', () => {
+  const pageSize = { width: 100, height: 100 };
+  const margins = { top: 10, right: 10, bottom: 10, left: 10 };
+
+  it('derives the height mode from the legacy overflow flag', () => {
+    expect(getTextHeightMode({ overflow: TEXT_OVERFLOW_EXPAND })).toBe('auto');
+    expect(getTextHeightMode({ overflow: TEXT_OVERFLOW_VISIBLE })).toBe('fixed');
+    expect(getTextHeightMode({ heightMode: 'auto', overflow: TEXT_OVERFLOW_VISIBLE })).toBe('auto');
+  });
+
+  it('defaults the width mode to fixed', () => {
+    expect(getTextWidthMode(getTextSchema())).toBe('fixed');
+  });
+
+  it('stops available width at the page margin by default', () => {
+    const schema = { ...getTextSchema(), position: { x: 20, y: 0 } };
+
+    expect(getAvailableTextWidth(schema, { pageSize, margins })).toBe(70);
+  });
+
+  it('stops available width at the page edge when requested', () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 20, y: 0 },
+      expansionBoundary: 'page' as const,
+    };
+
+    expect(getAvailableTextWidth(schema, { pageSize, margins })).toBe(80);
+  });
+
+  it('stops available width at another field when requested', () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 20, y: 0 },
+      expansionBoundary: 'field' as const,
+      boundarySchemaName: 'stopper',
+    };
+
+    expect(
+      getAvailableTextWidth(schema, {
+        pageSize,
+        margins,
+        siblings: [{ name: 'stopper', position: { x: 60, y: 0 }, width: 10, height: 10 }],
+      }),
+    ).toBe(40);
+  });
+
+  it('does not constrain manual or overlapping fields', () => {
+    const base = { ...getTextSchema(), position: { x: 20, y: 0 } };
+
+    expect(
+      getAvailableTextWidth({ ...base, expansionBoundary: 'manual' }, { pageSize, margins }),
+    ).toBeUndefined();
+    expect(
+      getAvailableTextWidth({ ...base, expansionBoundary: 'allow-overlap' }, { pageSize, margins }),
+    ).toBeUndefined();
+  });
+
+  it('keeps the authored width for fixed-width text', async () => {
+    const schema = { ...getTextSchema(), width: 30 };
+
+    await expect(
+      resolveTextWidth({
+        value: 'a very long value that would not fit',
+        schema,
+        context: { pageSize, margins },
+        font: getSampleFont(),
+      }),
+    ).resolves.toBe(30);
+  });
+
+  it('fills the available width for fill-width text', async () => {
+    const schema = {
+      ...getTextSchema(),
+      width: 10,
+      position: { x: 20, y: 0 },
+      widthMode: 'fill' as const,
+    };
+
+    await expect(
+      resolveTextWidth({
+        value: 'short',
+        schema,
+        context: { pageSize, margins },
+        font: getSampleFont(),
+      }),
+    ).resolves.toBe(70);
+  });
+
+  it('grows auto-width text up to the boundary only', async () => {
+    const schema = {
+      ...getTextSchema(),
+      width: 10,
+      position: { x: 20, y: 0 },
+      widthMode: 'auto' as const,
+    };
+
+    const width = await resolveTextWidth({
+      value: 'text '.repeat(200),
+      schema,
+      context: { pageSize, margins },
+      font: getSampleFont(),
+    });
+
+    expect(width).toBe(70);
+  });
+
+  it('measures the natural width of the widest paragraph', async () => {
+    const schema = { ...getTextSchema(), width: 10 };
+    const narrow = await measureTextWidth({ value: 'ab', schema, font: getSampleFont() });
+    const wide = await measureTextWidth({
+      value: 'ab\nabcdefghij',
+      schema,
+      font: getSampleFont(),
+    });
+
+    expect(wide).toBeGreaterThan(narrow);
   });
 });

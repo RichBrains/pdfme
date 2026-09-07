@@ -96,6 +96,7 @@ const Preview = ({
   const latestRefreshRef = useRef(refresh);
   const isMountedRef = useRef(true);
   const initRequestIdRef = useRef(0);
+  const latestPageSizesRef = useRef<Size[]>([]);
 
   useEffect(() => {
     latestFontRef.current = font;
@@ -108,6 +109,10 @@ const Preview = ({
   useEffect(() => {
     latestRefreshRef.current = refresh;
   }, [refresh]);
+
+  useEffect(() => {
+    latestPageSizesRef.current = pageSizes;
+  }, [pageSizes]);
 
   useEffect(
     () => () => {
@@ -127,6 +132,9 @@ const Preview = ({
       options,
       _cache,
       getDynamicHeights: getDynamicLayoutForSchema,
+      // Templates backed by an uploaded PDF need their page geometry supplied,
+      // because it is not part of the template itself.
+      pageSizes: latestPageSizesRef.current,
     })
       .then(async (dynamicTemplate) => {
         const sl = await template2SchemasList(dynamicTemplate);

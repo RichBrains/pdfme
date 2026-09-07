@@ -32,6 +32,12 @@ import {
 import { DEFAULT_OPACITY, HEX_COLOR_PATTERN } from '../constants.js';
 import { getExtraFormatterSchema } from './extraFormatter.js';
 import { canUseTextOverflowExpand, isTextOverflowExpand } from './overflow.js';
+import {
+  DEFAULT_TEXT_EXPANSION_BOUNDARY,
+  DEFAULT_TEXT_WIDTH_MODE,
+  getTextHeightMode,
+  getTextWidthMode,
+} from './sizing.js';
 import { createBoxDimension, getBoxDimensionPropPanelSchema } from '../box.js';
 
 const UseDynamicFontSize = (props: PropPanelWidgetProps) => {
@@ -95,6 +101,9 @@ export const propPanel: PropPanel<TextSchema> = {
 
     const activeTextSchema = activeSchema as unknown as TextSchema;
     const canExpandOverflow = canUseTextOverflowExpand(activeTextSchema, basePdf);
+    const heightMode = getTextHeightMode(activeTextSchema);
+    const indentMode = activeTextSchema.indentMode ?? 'none';
+    const canExpandSize = heightMode === 'auto' || getTextWidthMode(activeTextSchema) !== 'fixed';
     const isExpand = isTextOverflowExpand(activeTextSchema, basePdf);
     const enableDynamicFont =
       !isExpand && Boolean((activeSchema as { dynamicFontSize?: unknown })?.dynamicFontSize);
@@ -250,6 +259,99 @@ export const propPanel: PropPanel<TextSchema> = {
         widget: 'lineTitle',
         span: 24,
         properties: getBoxDimensionPropPanelSchema(),
+      },
+      widthMode: {
+        title: i18n('schemas.text.widthMode'),
+        type: 'string',
+        widget: 'select',
+        default: DEFAULT_TEXT_WIDTH_MODE,
+        props: {
+          options: [
+            { label: i18n('schemas.text.sizeFixed'), value: 'fixed' },
+            { label: i18n('schemas.text.sizeAuto'), value: 'auto' },
+            { label: i18n('schemas.text.sizeFill'), value: 'fill' },
+          ],
+        },
+        span: 8,
+      },
+      heightMode: {
+        title: i18n('schemas.text.heightMode'),
+        type: 'string',
+        widget: 'select',
+        default: heightMode,
+        props: {
+          options: [
+            { label: i18n('schemas.text.sizeFixed'), value: 'fixed' },
+            { label: i18n('schemas.text.sizeAuto'), value: 'auto' },
+          ],
+        },
+        span: 8,
+      },
+      expansionBoundary: {
+        title: i18n('schemas.text.expansionBoundary'),
+        type: 'string',
+        widget: 'select',
+        default: DEFAULT_TEXT_EXPANSION_BOUNDARY,
+        hidden: !canExpandSize,
+        props: {
+          options: [
+            { label: i18n('schemas.text.boundaryMargin'), value: 'margin' },
+            { label: i18n('schemas.text.boundaryPage'), value: 'page' },
+            { label: i18n('schemas.text.boundaryField'), value: 'field' },
+            { label: i18n('schemas.text.boundaryManual'), value: 'manual' },
+            { label: i18n('schemas.text.boundaryOverlap'), value: 'allow-overlap' },
+          ],
+        },
+        span: 8,
+      },
+      boundarySchemaName: {
+        title: i18n('fieldName'),
+        type: 'string',
+        widget: 'input',
+        hidden: activeTextSchema.expansionBoundary !== 'field',
+        span: 24,
+      },
+      // Paragraph indentation is stored flat on the schema so the ruler and the
+      // property panel can patch each value independently.
+      leftIndent: {
+        title: i18n('schemas.text.indentLeft'),
+        type: 'number',
+        widget: 'inputNumber',
+        default: 0,
+        props: { step: 1 },
+        span: 8,
+      },
+      rightIndent: {
+        title: i18n('schemas.text.indentRight'),
+        type: 'number',
+        widget: 'inputNumber',
+        default: 0,
+        props: { step: 1 },
+        span: 8,
+      },
+      indentMode: {
+        title: i18n('schemas.text.indentSpecial'),
+        type: 'string',
+        widget: 'select',
+        default: 'none',
+        props: {
+          options: [
+            { label: i18n('schemas.text.indentNone'), value: 'none' },
+            { label: i18n('schemas.text.indentFirstLine'), value: 'firstLine' },
+            { label: i18n('schemas.text.indentHanging'), value: 'hanging' },
+          ],
+        },
+        span: 8,
+      },
+      specialIndent: {
+        title: i18n('schemas.text.indentBy'),
+        type: 'number',
+        widget: 'inputNumber',
+        default: 0,
+        // Negative values outdent the first line, which is a common letterhead style.
+        props: { step: 1 },
+        hidden: indentMode === 'none',
+        span: 8,
       },
       useInlineMarkdown: {
         type: 'boolean',

@@ -17,6 +17,8 @@ type Props = {
   verticalGuidelines: number[];
   elementGuidelines: HTMLElement[];
   snapEnabled: boolean;
+  /** Grid step in px, when grid snapping is enabled. */
+  snapGridSize?: number;
   keepRatio: boolean;
   rotatable: boolean;
   onDrag: ({ target, left, top }: OnDrag) => void;
@@ -59,9 +61,27 @@ const Moveable = (props: Props, ref: Ref<MoveableComponent>) => {
       zoom={props.controlScale}
       snappable={props.snapEnabled}
       snapCenter
-      snapDirections={{ top: true, right: true, bottom: true, left: true, center: true, middle: true }}
-      elementSnapDirections={{ top: true, right: true, bottom: true, left: true, center: true, middle: true }}
+      snapDirections={{
+        top: true,
+        right: true,
+        bottom: true,
+        left: true,
+        center: true,
+        middle: true,
+      }}
+      elementSnapDirections={{
+        top: true,
+        right: true,
+        bottom: true,
+        left: true,
+        center: true,
+        middle: true,
+      }}
       snapThreshold={5}
+      // Equal-gap snapping helps authors build evenly spaced rows and columns.
+      snapGap
+      snapGridWidth={props.snapGridSize}
+      snapGridHeight={props.snapGridSize}
       isDisplaySnapDigit={false}
       elementGuidelines={props.elementGuidelines}
       draggable

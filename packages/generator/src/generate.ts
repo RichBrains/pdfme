@@ -1,5 +1,11 @@
 import * as pdfLib from '@pdfme/pdf-lib';
-import type { GenerateProps, GeneratorOptions, Schema, PDFRenderProps, Template } from '@pdfme/common';
+import type {
+  GenerateProps,
+  GeneratorOptions,
+  Schema,
+  PDFRenderProps,
+  Template,
+} from '@pdfme/common';
 import {
   checkGenerateProps,
   applyInternalLinkAnnotations,
@@ -112,7 +118,7 @@ const generate = async (props: GenerateProps): Promise<Uint8Array<ArrayBuffer>> 
   const basePdf = template.basePdf;
   const isBlankBasePdf = isBlankPdf(basePdf);
   const staticSchemas = isBlankBasePdf ? (basePdf.staticSchema ?? []) : [];
-  const shouldApplyDynamicTemplate = isBlankBasePdf && hasDynamicLayoutSchema(template.schemas);
+  const shouldApplyDynamicTemplate = hasDynamicLayoutSchema(template.schemas);
 
   if (inputs.length === 0) {
     throw new Error(
@@ -125,7 +131,8 @@ const generate = async (props: GenerateProps): Promise<Uint8Array<ArrayBuffer>> 
   const { pdfDoc, renderObj } = await preprocessing({ template, userPlugins });
 
   const _cache = new Map<string | number, unknown>();
-  // Dynamic layout is only applied to blank PDFs, so custom base PDF pages can be embedded once.
+  // Custom base PDF pages can be embedded once: reflowing them expands fields in
+  // place instead of adding pages, so the page count never changes.
   const cachedEmbedPdfPages = isBlankBasePdf
     ? undefined
     : await getEmbedPdfPages({
@@ -133,6 +140,12 @@ const generate = async (props: GenerateProps): Promise<Uint8Array<ArrayBuffer>> 
         template,
         pdfDoc,
       });
+  // Page geometry of an uploaded PDF is not part of the template, so it is
+  // derived from the embedded pages and handed to the dynamic layout engine.
+  const basePdfPageSizes = cachedEmbedPdfPages?.embedPdfBoxes.map((box) => ({
+    width: pt2mm(box.mediaBox.width),
+    height: pt2mm(box.mediaBox.height),
+  }));
   const cachedRenderInfo = shouldApplyDynamicTemplate
     ? undefined
     : getSchemaRenderInfo(template.schemas);
@@ -148,6 +161,7 @@ const generate = async (props: GenerateProps): Promise<Uint8Array<ArrayBuffer>> 
           options: renderOptions,
           _cache,
           getDynamicHeights: getDynamicLayoutForSchema,
+          pageSizes: basePdfPageSizes,
         })
       : template;
     const { basePages, embedPdfBoxes } =

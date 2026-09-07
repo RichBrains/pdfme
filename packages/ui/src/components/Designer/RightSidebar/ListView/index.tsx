@@ -24,8 +24,17 @@ const ListView = (
     | 'onChangePageLayout'
   >,
 ) => {
-  const { schemas, onSortEnd, onEdit, hoveringSchemaId, onChangeHoveringSchemaId, changeSchemas, template, pageIndex, onChangePageLayout } =
-    props;
+  const {
+    schemas,
+    onSortEnd,
+    onEdit,
+    hoveringSchemaId,
+    onChangeHoveringSchemaId,
+    changeSchemas,
+    template,
+    pageIndex,
+    onChangePageLayout,
+  } = props;
   const i18n = useContext(I18nContext);
   const [isBulkUpdateFieldNamesMode, setIsBulkUpdateFieldNamesMode] = useState(false);
   const [fieldNamesValue, setFieldNamesValue] = useState('');
@@ -80,7 +89,11 @@ const ListView = (
               onSortEnd={onSortEnd}
               onEdit={onEdit}
             />
-            <LayoutSettings template={template} pageIndex={pageIndex} onChangePageLayout={onChangePageLayout} />
+            <LayoutSettings
+              template={template}
+              pageIndex={pageIndex}
+              onChangePageLayout={onChangePageLayout}
+            />
           </>
         )}
       </SidebarBody>

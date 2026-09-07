@@ -14,7 +14,7 @@ exports[`Designer snapshot 1`] = `
       style="left: 0px; right: 0px; position: absolute; z-index: 1; height: 0px; width: 45px; background: rgb(245, 245, 245); text-align: center; overflow: auto;"
     >
       <div
-        aria-describedby="5"
+        aria-describedby="6"
         aria-disabled="false"
         aria-roledescription="draggable"
         role="button"
@@ -64,7 +64,7 @@ exports[`Designer snapshot 1`] = `
         </div>
       </div>
       <div
-        aria-describedby="5"
+        aria-describedby="6"
         aria-disabled="false"
         aria-roledescription="draggable"
         role="button"
@@ -368,6 +368,509 @@ exports[`Designer snapshot 1`] = `
                 role="status"
                 style="position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; margin: -1px; border: 0px; padding: 0px; overflow: hidden; clip: rect(0px); clip-path: inset(100%); white-space: nowrap;"
               />
+              <div
+                style="padding: 12px; border-top: 1px solid rgb(217, 217, 217);"
+              >
+                <span
+                  class="ant-typography"
+                >
+                  <strong>
+                    Layout
+                  </strong>
+                </span>
+                <div
+                  style="display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; margin-top: 8px;"
+                >
+                  <span>
+                    Show margins
+                  </span>
+                  <button
+                    aria-checked="true"
+                    class="ant-switch ant-switch-small ant-switch-checked"
+                    role="switch"
+                    type="button"
+                  >
+                    <div
+                      class="ant-switch-handle"
+                    />
+                    <span
+                      class="ant-switch-inner"
+                    >
+                      <span
+                        class="ant-switch-inner-checked"
+                      />
+                      <span
+                        class="ant-switch-inner-unchecked"
+                      />
+                    </span>
+                  </button>
+                  <span>
+                    Show grid
+                  </span>
+                  <button
+                    aria-checked="false"
+                    class="ant-switch ant-switch-small"
+                    role="switch"
+                    type="button"
+                  >
+                    <div
+                      class="ant-switch-handle"
+                    />
+                    <span
+                      class="ant-switch-inner"
+                    >
+                      <span
+                        class="ant-switch-inner-checked"
+                      />
+                      <span
+                        class="ant-switch-inner-unchecked"
+                      />
+                    </span>
+                  </button>
+                  <span>
+                    Snap to grid
+                  </span>
+                  <button
+                    aria-checked="false"
+                    class="ant-switch ant-switch-small"
+                    role="switch"
+                    type="button"
+                  >
+                    <div
+                      class="ant-switch-handle"
+                    />
+                    <span
+                      class="ant-switch-inner"
+                    >
+                      <span
+                        class="ant-switch-inner-checked"
+                      />
+                      <span
+                        class="ant-switch-inner-unchecked"
+                      />
+                    </span>
+                  </button>
+                  <span>
+                    Grid spacing
+                  </span>
+                  <div
+                    class="ant-input-number ant-input-number-mode-input ant-input-number-css-var ant-input-number-outlined ant-input-number-sm"
+                  >
+                    <input
+                      aria-valuemin="0.1"
+                      aria-valuenow="5"
+                      autocomplete="off"
+                      class="ant-input-number-input"
+                      role="spinbutton"
+                      step="1"
+                      value="5"
+                    />
+                    <div
+                      class="ant-input-number-actions"
+                    >
+                      <span
+                        aria-disabled="false"
+                        aria-label="Increase Value"
+                        class="ant-input-number-action ant-input-number-action-up"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="up"
+                          class="anticon anticon-up"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="up"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M890.5 755.3L537.9 269.2c-12.8-17.6-39-17.6-51.7 0L133.5 755.3A8 8 0 00140 768h75c5.1 0 9.9-2.5 12.9-6.6L512 369.8l284.1 391.6c3 4.1 7.8 6.6 12.9 6.6h75c6.5 0 10.3-7.4 6.5-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                      <span
+                        aria-disabled="false"
+                        aria-label="Decrease Value"
+                        class="ant-input-number-action ant-input-number-action-down"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="down"
+                          class="anticon anticon-down"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="down"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <span>
+                    Grid unit
+                  </span>
+                  <div
+                    class="ant-select ant-select-sm ant-select-outlined ant-select-css-var ant-select-single ant-select-show-arrow"
+                    style="width: 80px;"
+                  >
+                    <div
+                      class="ant-select-content ant-select-content-has-value"
+                      title="mm"
+                    >
+                      mm
+                      <input
+                        aria-autocomplete="list"
+                        aria-expanded="false"
+                        aria-haspopup="listbox"
+                        autocomplete="new-password"
+                        class="ant-select-input"
+                        id="3"
+                        readonly=""
+                        role="combobox"
+                        type="text"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="ant-select-suffix"
+                    >
+                      <span
+                        aria-label="down"
+                        class="anticon anticon-down"
+                        role="img"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          data-icon="down"
+                          fill="currentColor"
+                          focusable="false"
+                          height="1em"
+                          viewBox="64 64 896 896"
+                          width="1em"
+                        >
+                          <path
+                            d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                          />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                  <span>
+                    Margin top
+                  </span>
+                  <div
+                    class="ant-input-number ant-input-number-mode-input ant-input-number-css-var ant-input-number-outlined ant-input-number-sm"
+                  >
+                    <input
+                      aria-valuemin="0"
+                      aria-valuenow="0"
+                      autocomplete="off"
+                      class="ant-input-number-input"
+                      role="spinbutton"
+                      step="1"
+                      value="0"
+                    />
+                    <div
+                      class="ant-input-number-actions"
+                    >
+                      <span
+                        aria-disabled="false"
+                        aria-label="Increase Value"
+                        class="ant-input-number-action ant-input-number-action-up"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="up"
+                          class="anticon anticon-up"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="up"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M890.5 755.3L537.9 269.2c-12.8-17.6-39-17.6-51.7 0L133.5 755.3A8 8 0 00140 768h75c5.1 0 9.9-2.5 12.9-6.6L512 369.8l284.1 391.6c3 4.1 7.8 6.6 12.9 6.6h75c6.5 0 10.3-7.4 6.5-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                      <span
+                        aria-disabled="true"
+                        aria-label="Decrease Value"
+                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="down"
+                          class="anticon anticon-down"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="down"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <span>
+                    Margin right
+                  </span>
+                  <div
+                    class="ant-input-number ant-input-number-mode-input ant-input-number-css-var ant-input-number-outlined ant-input-number-sm"
+                  >
+                    <input
+                      aria-valuemin="0"
+                      aria-valuenow="0"
+                      autocomplete="off"
+                      class="ant-input-number-input"
+                      role="spinbutton"
+                      step="1"
+                      value="0"
+                    />
+                    <div
+                      class="ant-input-number-actions"
+                    >
+                      <span
+                        aria-disabled="false"
+                        aria-label="Increase Value"
+                        class="ant-input-number-action ant-input-number-action-up"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="up"
+                          class="anticon anticon-up"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="up"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M890.5 755.3L537.9 269.2c-12.8-17.6-39-17.6-51.7 0L133.5 755.3A8 8 0 00140 768h75c5.1 0 9.9-2.5 12.9-6.6L512 369.8l284.1 391.6c3 4.1 7.8 6.6 12.9 6.6h75c6.5 0 10.3-7.4 6.5-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                      <span
+                        aria-disabled="true"
+                        aria-label="Decrease Value"
+                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="down"
+                          class="anticon anticon-down"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="down"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <span>
+                    Margin bottom
+                  </span>
+                  <div
+                    class="ant-input-number ant-input-number-mode-input ant-input-number-css-var ant-input-number-outlined ant-input-number-sm"
+                  >
+                    <input
+                      aria-valuemin="0"
+                      aria-valuenow="0"
+                      autocomplete="off"
+                      class="ant-input-number-input"
+                      role="spinbutton"
+                      step="1"
+                      value="0"
+                    />
+                    <div
+                      class="ant-input-number-actions"
+                    >
+                      <span
+                        aria-disabled="false"
+                        aria-label="Increase Value"
+                        class="ant-input-number-action ant-input-number-action-up"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="up"
+                          class="anticon anticon-up"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="up"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M890.5 755.3L537.9 269.2c-12.8-17.6-39-17.6-51.7 0L133.5 755.3A8 8 0 00140 768h75c5.1 0 9.9-2.5 12.9-6.6L512 369.8l284.1 391.6c3 4.1 7.8 6.6 12.9 6.6h75c6.5 0 10.3-7.4 6.5-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                      <span
+                        aria-disabled="true"
+                        aria-label="Decrease Value"
+                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="down"
+                          class="anticon anticon-down"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="down"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <span>
+                    Margin left
+                  </span>
+                  <div
+                    class="ant-input-number ant-input-number-mode-input ant-input-number-css-var ant-input-number-outlined ant-input-number-sm"
+                  >
+                    <input
+                      aria-valuemin="0"
+                      aria-valuenow="0"
+                      autocomplete="off"
+                      class="ant-input-number-input"
+                      role="spinbutton"
+                      step="1"
+                      value="0"
+                    />
+                    <div
+                      class="ant-input-number-actions"
+                    >
+                      <span
+                        aria-disabled="false"
+                        aria-label="Increase Value"
+                        class="ant-input-number-action ant-input-number-action-up"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="up"
+                          class="anticon anticon-up"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="up"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M890.5 755.3L537.9 269.2c-12.8-17.6-39-17.6-51.7 0L133.5 755.3A8 8 0 00140 768h75c5.1 0 9.9-2.5 12.9-6.6L512 369.8l284.1 391.6c3 4.1 7.8 6.6 12.9 6.6h75c6.5 0 10.3-7.4 6.5-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                      <span
+                        aria-disabled="true"
+                        aria-label="Decrease Value"
+                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        role="button"
+                        unselectable="on"
+                      >
+                        <span
+                          aria-label="down"
+                          class="anticon anticon-down"
+                          role="img"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            data-icon="down"
+                            fill="currentColor"
+                            focusable="false"
+                            height="1em"
+                            viewBox="64 64 896 896"
+                            width="1em"
+                          >
+                            <path
+                              d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"
+                            />
+                          </svg>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div
               style="display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: 8px; padding: 16px;"
@@ -398,6 +901,18 @@ exports[`Designer snapshot 1`] = `
           <div
             style="font-family: "Roboto"; top: 30px; left: 30px; position: relative; background-image: url("data:image/png;base64,a..."); background-size: 793.700787411px 1122.5196850527px; width: 793.700787411px; height: 1122.5196850527px;"
           >
+            <div
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; top: 0px; height: 0px; left: 0px; right: 0px;"
+            />
+            <div
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; right: 0px; width: 0px; top: 0px; bottom: 0px;"
+            />
+            <div
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; bottom: 0px; height: 0px; left: 0px; right: 0px;"
+            />
+            <div
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; left: 0px; width: 0px; top: 0px; bottom: 0px;"
+            />
             <div
               class="ruler-container"
               style="position: absolute; top: -30px; left: -30px; height: 30px; width: 30px; background: rgb(51, 51, 51);"
@@ -555,7 +1070,7 @@ exports[`Designer snapshot 1`] = `
             <div>
               <div
                 class="selectable"
-                id="3"
+                id="4"
                 style="position: absolute; cursor: pointer; height: 56.692913386499995px; width: 377.95275591px; top: 75.590551182px; left: 75.590551182px; transform: rotate(0deg); opacity: 1; outline: 1px dashed #1677ff;"
                 title="field1"
               >
@@ -566,7 +1081,7 @@ exports[`Designer snapshot 1`] = `
                     style="padding: 0px; resize: none; background-color: transparent; border: medium; display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; cursor: default;"
                   >
                     <div
-                      id="text-3"
+                      id="text-4"
                       style="font-family: inherit; color: rgb(0, 0, 0); font-size: 30pt; letter-spacing: 0pt; line-height: 1em; text-align: left; white-space: pre-wrap; word-break: break-word; resize: none; border: medium; outline: none; margin-bottom: 0px; padding-top: 3.436640625px; background-color: transparent; height: 100%;"
                     >
                       <span
@@ -587,7 +1102,7 @@ exports[`Designer snapshot 1`] = `
             <div>
               <div
                 class="selectable"
-                id="4"
+                id="5"
                 style="position: absolute; cursor: pointer; height: 151.181102364px; width: 377.95275591px; top: 132.2834645685px; left: 75.590551182px; transform: rotate(0deg); opacity: 1; outline: 1px dashed #1677ff;"
                 title="field2"
               >
@@ -610,7 +1125,7 @@ exports[`Designer snapshot 1`] = `
       </div>
     </div>
     <div
-      id="5"
+      id="6"
       style="display: none;"
     >
       
@@ -622,7 +1137,7 @@ exports[`Designer snapshot 1`] = `
     <div
       aria-atomic="true"
       aria-live="assertive"
-      id="6"
+      id="7"
       role="status"
       style="position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; margin: -1px; border: 0px; padding: 0px; overflow: hidden; clip: rect(0px); clip-path: inset(100%); white-space: nowrap;"
     />

@@ -2,8 +2,9 @@ import type { DynamicLayoutArgs, DynamicLayoutCallbackResult, Schema } from '@pd
 import { getDynamicLayoutForList } from './list/dynamicTemplate.js';
 import { getDynamicLayoutForMultiVariableText } from './multiVariableText/dynamicTemplate.js';
 import { getDynamicLayoutForTable } from './tables/dynamicTemplate.js';
-import { TEXT_OVERFLOW_EXPAND } from './text/constants.js';
 import { getDynamicLayoutForText } from './text/dynamicTemplate.js';
+import { getTextWidthMode, isAutoHeightText } from './text/sizing.js';
+import type { TextSchema } from './text/types.js';
 
 export {
   BUILT_IN_DYNAMIC_LAYOUT_SPLIT_UNITS,
@@ -19,9 +20,12 @@ export {
   type BuiltInDynamicLayoutSplitUnit,
 } from './splitRange.js';
 
-const isExpandableTextSchema = (schema: Schema) =>
-  (schema.type === 'text' || schema.type === 'multiVariableText') &&
-  (schema as { overflow?: unknown }).overflow === TEXT_OVERFLOW_EXPAND;
+/** Text fields need dynamic layout when either their height or width can grow. */
+const isExpandableTextSchema = (schema: Schema) => {
+  if (schema.type !== 'text' && schema.type !== 'multiVariableText') return false;
+  const textSchema = schema as TextSchema;
+  return isAutoHeightText(textSchema) || getTextWidthMode(textSchema) !== 'fixed';
+};
 
 export const isDynamicLayoutSchema = (schema: Schema) =>
   schema.type === 'table' || schema.type === 'list' || isExpandableTextSchema(schema);

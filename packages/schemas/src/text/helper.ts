@@ -12,8 +12,9 @@ import {
   isUrlSafeToFetch,
 } from '@pdfme/common';
 import { Buffer } from 'buffer';
-import type { TextSchema, FontWidthCalcValues } from './types.js';
+import type { TextSchema, FontWidthCalcValues, ParagraphIndent } from './types.js';
 import { getBoxContentArea } from '../box.js';
+import { getLineWidthPt, getParagraphIndent, hasParagraphIndent } from './indent.js';
 import {
   DEFAULT_FONT_SIZE,
   DEFAULT_CHARACTER_SPACING,
@@ -310,6 +311,8 @@ export const calculateDynamicFontSize = ({
     lineHeight = DEFAULT_LINE_HEIGHT,
   } = textSchema;
   const { width: boxWidth, height: boxHeight } = getBoxContentArea(textSchema);
+  const paragraphIndent = getParagraphIndent(textSchema);
+  const indent = hasParagraphIndent(paragraphIndent) ? paragraphIndent : undefined;
   const fontSize = startingFontSize || schemaFontSize || DEFAULT_FONT_SIZE;
   if (!dynamicFontSizeSetting) return fontSize;
   if (dynamicFontSizeSetting.max < dynamicFontSizeSetting.min) return fontSize;
@@ -335,12 +338,16 @@ export const calculateDynamicFontSize = ({
     const otherRowHeightInMm = pt2mm(size * lineHeight);
 
     paragraphs.forEach((paragraph, paraIndex) => {
-      const lines = getSplittedLinesBySegmenter(paragraph, {
-        font: fontKitFont,
-        fontSize: size,
-        characterSpacing,
-        boxWidthInPt,
-      });
+      const lines = getSplittedLinesBySegmenter(
+        paragraph,
+        {
+          font: fontKitFont,
+          fontSize: size,
+          characterSpacing,
+          boxWidthInPt,
+        },
+        indent ? (lineIndex) => getLineWidthPt(indent, boxWidthInPt, lineIndex === 0) : undefined,
+      );
 
       lines.forEach((line, lineIndex) => {
         if (dynamicFontFit === DYNAMIC_FIT_VERTICAL) {
@@ -421,17 +428,27 @@ export const splitTextToSize = (arg: {
   boxWidthInPt: number;
   fontSize: number;
   fontKitFont: fontkit.Font;
+  /** Paragraph indentation, which makes the first line narrower or wider. */
+  paragraphIndent?: ParagraphIndent;
 }) => {
-  const { value, characterSpacing, fontSize, fontKitFont, boxWidthInPt } = arg;
+  const { value, characterSpacing, fontSize, fontKitFont, boxWidthInPt, paragraphIndent } = arg;
   const fontWidthCalcValues: FontWidthCalcValues = {
     font: fontKitFont,
     fontSize,
     characterSpacing,
     boxWidthInPt,
   };
+  const indent =
+    paragraphIndent && hasParagraphIndent(paragraphIndent) ? paragraphIndent : undefined;
+  // Within a paragraph only the first line may use a different width, so the
+  // width provider only needs to distinguish index 0 from the wrapped lines.
+  const getLineWidthInPt = indent
+    ? (lineIndex: number) => getLineWidthPt(indent, boxWidthInPt, lineIndex === 0)
+    : undefined;
+
   let lines: string[] = [];
   value.split(/\r\n|\r|\n|\f|\v/g).forEach((line: string) => {
-    lines = lines.concat(getSplittedLinesBySegmenter(line, fontWidthCalcValues));
+    lines = lines.concat(getSplittedLinesBySegmenter(line, fontWidthCalcValues, getLineWidthInPt));
   });
   return lines;
 };
@@ -444,13 +461,18 @@ const getWordSegmenter = () => {
   return wordSegmenter;
 };
 
-const getSplittedLinesBySegmenter = (line: string, calcValues: FontWidthCalcValues): string[] => {
+const getSplittedLinesBySegmenter = (
+  line: string,
+  calcValues: FontWidthCalcValues,
+  getLineWidthInPt?: (lineIndex: number) => number,
+): string[] => {
   // nothing to process but need to keep this for new lines.
   if (line.trim() === '') {
     return [''];
   }
 
   const { font, fontSize, characterSpacing, boxWidthInPt } = calcValues;
+  const widthAt = (lineIndex: number) => getLineWidthInPt?.(lineIndex) ?? boxWidthInPt;
   const segmenter = getWordSegmenter();
   const iterator = segmenter.segment(line.trimEnd())[Symbol.iterator]();
 
@@ -463,7 +485,7 @@ const getSplittedLinesBySegmenter = (line: string, calcValues: FontWidthCalcValu
     if (chunk.done) break;
     const segment = chunk.value.segment;
     const textWidth = widthOfTextAtSize(segment, font, fontSize, characterSpacing);
-    if (currentTextSize + textWidth <= boxWidthInPt) {
+    if (currentTextSize + textWidth <= widthAt(lineCounter)) {
       // the size of boxWidth is large enough to add the segment
       if (lines[lineCounter]) {
         lines[lineCounter] += segment;
@@ -477,7 +499,7 @@ const getSplittedLinesBySegmenter = (line: string, calcValues: FontWidthCalcValu
       // if they overflow the box, treat them as a line break and move to the next line
       lines[++lineCounter] = '';
       currentTextSize = 0;
-    } else if (textWidth <= boxWidthInPt) {
+    } else if (textWidth <= widthAt(lineCounter + 1)) {
       // the segment is small enough to be added to the next line
       lines[++lineCounter] = segment;
       currentTextSize = textWidth + characterSpacing;
@@ -485,7 +507,7 @@ const getSplittedLinesBySegmenter = (line: string, calcValues: FontWidthCalcValu
       // the segment is too large to fit in the boxWidth, we wrap the segment
       for (const char of segment) {
         const size = widthOfTextAtSize(char, font, fontSize, characterSpacing);
-        if (currentTextSize + size <= boxWidthInPt) {
+        if (currentTextSize + size <= widthAt(lineCounter)) {
           if (lines[lineCounter]) {
             lines[lineCounter] += char;
             currentTextSize += size + characterSpacing;

@@ -12,6 +12,11 @@ import {
   BasePdf,
   BlankPdf,
   CustomPdf,
+  PageMargins,
+  GridSettings,
+  RulerGuide,
+  PageLayoutSettings,
+  TemplateLayout,
   CommonOptions,
   Template,
   GeneratorOptions,
@@ -243,6 +248,11 @@ export type ColorType = z.infer<typeof ColorType>;
 export type BasePdf = z.infer<typeof BasePdf>;
 export type BlankPdf = z.infer<typeof BlankPdf>;
 export type CustomPdf = z.infer<typeof CustomPdf>;
+export type PageMargins = z.infer<typeof PageMargins>;
+export type GridSettings = z.infer<typeof GridSettings>;
+export type RulerGuide = z.infer<typeof RulerGuide>;
+export type PageLayoutSettings = z.infer<typeof PageLayoutSettings>;
+export type TemplateLayout = z.infer<typeof TemplateLayout>;
 export type Template = z.infer<typeof Template>;
 export type CommonOptions = z.infer<typeof CommonOptions>;
 export type GeneratorOptions = z.infer<typeof GeneratorOptions>;
@@ -275,6 +285,10 @@ export type DynamicLayoutArgs = {
   basePdf: BasePdf;
   options: CommonOptions;
   _cache: Map<string | number, unknown>;
+  /** Page size (mm) of the page the schema is laid out on, when known. */
+  pageSize?: Size;
+  /** Configured page margins (mm) of that page, when known. */
+  margins?: PageMargins;
 };
 
 export type GetDynamicLayout = (

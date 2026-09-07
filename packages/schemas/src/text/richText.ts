@@ -19,7 +19,8 @@ import {
 } from './constants.js';
 import { getFontKitFont, heightOfFontAtSize, widthOfTextAtSize } from './helper.js';
 import { parseInlineMarkdown } from './inlineMarkdown.js';
-import type { RichTextRun, TextSchema } from './types.js';
+import type { ParagraphIndent, RichTextRun, TextSchema } from './types.js';
+import { getLineWidthPt, getParagraphIndent, hasParagraphIndent } from './indent.js';
 import { getBoxContentArea } from '../box.js';
 
 export type ResolvedRichTextRun = RichTextRun & {
@@ -303,15 +304,27 @@ export const layoutRichTextLines = (arg: {
   fontSize: number;
   characterSpacing: number;
   boxWidthInPt: number;
+  /** Paragraph indentation, which makes the first line of a paragraph narrower. */
+  paragraphIndent?: ParagraphIndent;
 }): RichTextLine[] => {
-  const { runs, fontSize, characterSpacing, boxWidthInPt } = arg;
+  const { runs, fontSize, characterSpacing, boxWidthInPt, paragraphIndent } = arg;
+  const indent =
+    paragraphIndent && hasParagraphIndent(paragraphIndent) ? paragraphIndent : undefined;
   const lines: RichTextLine[] = [];
   let currentLine = createLine();
+  let isParagraphStart = true;
+
+  // Available width depends on whether the current line starts a paragraph,
+  // because first-line and hanging indents only offset one of the two.
+  const lineWidthInPt = () =>
+    indent ? getLineWidthPt(indent, boxWidthInPt, isParagraphStart) : boxWidthInPt;
 
   const pushCurrentLine = (hardBreak: boolean) => {
     currentLine.hardBreak = hardBreak;
     lines.push(currentLine);
     currentLine = createLine();
+    // A hard break ends the paragraph, so the next line starts a new one.
+    isParagraphStart = hardBreak;
   };
 
   const pushPiecesToLine = (pieces: RichTextRunPiece[]) => {
@@ -325,18 +338,18 @@ export const layoutRichTextLines = (arg: {
 
     while (remainingText.length > 0) {
       const pendingSpacing = currentLine.runs.length > 0 ? characterSpacing : 0;
-      const remainingWidth = Math.max(boxWidthInPt - currentLine.width - pendingSpacing, 0);
+      const remainingWidth = Math.max(lineWidthInPt() - currentLine.width - pendingSpacing, 0);
       const remainingTextWidth = measureRunText(run, remainingText, fontSize, characterSpacing);
 
       if (
         remainingTextWidth <= remainingWidth ||
-        (currentLine.runs.length === 0 && remainingTextWidth <= boxWidthInPt)
+        (currentLine.runs.length === 0 && remainingTextWidth <= lineWidthInPt())
       ) {
         pushRunToLine(currentLine, run, remainingText, fontSize, characterSpacing);
         return;
       }
 
-      if (currentLine.runs.length > 0 && remainingTextWidth <= boxWidthInPt) {
+      if (currentLine.runs.length > 0 && remainingTextWidth <= lineWidthInPt()) {
         pushCurrentLine(false);
         continue;
       }
@@ -348,7 +361,7 @@ export const layoutRichTextLines = (arg: {
       for (const grapheme of graphemes) {
         const candidate = fittingText + grapheme;
         const candidateWidth = measureRunText(run, candidate, fontSize, characterSpacing);
-        const maxWidth = currentLine.runs.length === 0 ? boxWidthInPt : remainingWidth;
+        const maxWidth = currentLine.runs.length === 0 ? lineWidthInPt() : remainingWidth;
         if (candidateWidth > maxWidth) {
           if (fittingText) break;
           if (currentLine.runs.length > 0) break;
@@ -372,11 +385,11 @@ export const layoutRichTextLines = (arg: {
   const pushSegment = (pieces: RichTextRunPiece[]) => {
     const segmentWidth = measurePiecesWidth(pieces, fontSize, characterSpacing);
     const pendingSpacing = currentLine.runs.length > 0 ? characterSpacing : 0;
-    const remainingWidth = Math.max(boxWidthInPt - currentLine.width - pendingSpacing, 0);
+    const remainingWidth = Math.max(lineWidthInPt() - currentLine.width - pendingSpacing, 0);
 
     if (
       segmentWidth <= remainingWidth ||
-      (currentLine.runs.length === 0 && segmentWidth <= boxWidthInPt)
+      (currentLine.runs.length === 0 && segmentWidth <= lineWidthInPt())
     ) {
       pushPiecesToLine(pieces);
       return;
@@ -384,7 +397,7 @@ export const layoutRichTextLines = (arg: {
 
     if (currentLine.runs.length > 0) {
       pushCurrentLine(false);
-      if (segmentWidth <= boxWidthInPt) {
+      if (segmentWidth <= lineWidthInPt()) {
         pushPiecesToLine(pieces);
         return;
       }
@@ -476,6 +489,7 @@ export const calculateDynamicRichTextFontSize = async (arg: {
       fontSize: size,
       characterSpacing,
       boxWidthInPt,
+      paragraphIndent: getParagraphIndent(schema),
     });
 
     lines.forEach((line, lineIndex) => {

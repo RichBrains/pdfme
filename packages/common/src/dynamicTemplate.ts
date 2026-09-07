@@ -6,8 +6,11 @@ import {
   CommonOptions,
   DynamicLayoutCallbackResult,
   DynamicLayoutResult,
+  PageMargins,
+  Size,
 } from './types.js';
 import { cloneDeep, isBlankPdf } from './helper.js';
+import { getPageMargins } from './layout.js';
 import { replacePlaceholders } from './expression.js';
 
 /** Floating point tolerance for comparisons */
@@ -25,9 +28,31 @@ interface ModifyTemplateForDynamicTableArg {
       basePdf: BasePdf;
       options: CommonOptions;
       _cache: Map<string | number, unknown>;
+      pageSize?: Size;
+      margins?: PageMargins;
     },
   ) => Promise<DynamicLayoutCallbackResult>;
+  /**
+   * Page sizes (mm) of the base PDF. Required to reflow templates that use an
+   * uploaded PDF as background, because their page geometry is not part of the
+   * template itself.
+   */
+  pageSizes?: Size[];
 }
+
+/** Vertical geometry used to reflow a single template page. */
+interface PageGeometry {
+  contentHeight: number;
+  paddingTop: number;
+  pageSize?: Size;
+  margins?: PageMargins;
+}
+
+/**
+ * Large finite stand-in for "no page break". Using Infinity would make the
+ * page-index arithmetic in placeUnitsOnPages produce NaN.
+ */
+const NO_PAGE_BREAK_HEIGHT = 1e9;
 
 interface LayoutItem {
   schema: Schema;
@@ -39,6 +64,45 @@ interface LayoutItem {
 /** Calculate the content height of a page (drawable area excluding padding) */
 const getContentHeight = (basePdf: BlankPdf): number =>
   basePdf.height - basePdf.padding[0] - basePdf.padding[2];
+
+/**
+ * Vertical geometry per template page.
+ *
+ * Blank PDFs use their padding and support page breaking. Uploaded PDFs use the
+ * configured page margins and expand fields in place: the background artwork of
+ * a continuation page is undefined, so fields are reflowed without adding pages.
+ */
+const getPageGeometries = (
+  template: Template,
+  pageSizes: Size[] | undefined,
+): { geometries: PageGeometry[]; allowPageBreak: boolean } | undefined => {
+  const basePdf = template.basePdf;
+  if (isBlankPdf(basePdf)) {
+    const [top, right, bottom, left] = basePdf.padding;
+    const geometry: PageGeometry = {
+      contentHeight: getContentHeight(basePdf),
+      paddingTop: top,
+      pageSize: { width: basePdf.width, height: basePdf.height },
+      margins: { top, right, bottom, left },
+    };
+    return { geometries: template.schemas.map(() => geometry), allowPageBreak: true };
+  }
+
+  if (!pageSizes || pageSizes.length === 0) return undefined;
+
+  const geometries = template.schemas.map((_, pageIndex) => {
+    const pageSize = pageSizes[Math.min(pageIndex, pageSizes.length - 1)];
+    const margins = getPageMargins(template, pageIndex);
+    return {
+      contentHeight: Math.max(0, pageSize.height - margins.top - margins.bottom),
+      paddingTop: margins.top,
+      pageSize,
+      margins,
+    };
+  });
+
+  return { geometries, allowPageBreak: false };
+};
 
 /** Get the input value for a schema */
 const getSchemaValue = (
@@ -232,6 +296,7 @@ function processDynamicPage(
   orderMap: Map<string, number>,
   contentHeight: number,
   paddingTop: number,
+  allowPageBreak: boolean,
 ): Schema[][] {
   const pages: Schema[][] = [];
   let totalYOffset = 0;
@@ -243,7 +308,7 @@ function processDynamicPage(
       item.schema,
       item.dynamicLayout,
       currentGlobalStartY,
-      contentHeight,
+      allowPageBreak ? contentHeight : NO_PAGE_BREAK_HEIGHT,
       paddingTop,
       pages,
     );
@@ -282,15 +347,14 @@ const normalizeDynamicLayoutResult = (result: DynamicLayoutCallbackResult): Dyna
 export const getDynamicTemplate = async (
   arg: ModifyTemplateForDynamicTableArg,
 ): Promise<Template> => {
-  const { template, input, options, _cache, getDynamicHeights } = arg;
+  const { template, input, options, _cache, getDynamicHeights, pageSizes } = arg;
   const basePdf = template.basePdf;
 
-  if (!isBlankPdf(basePdf)) {
+  const pageGeometry = getPageGeometries(template, pageSizes);
+  if (!pageGeometry) {
     return template;
   }
-
-  const contentHeight = getContentHeight(basePdf);
-  const paddingTop = basePdf.padding[0];
+  const { geometries, allowPageBreak } = pageGeometry;
   const resultPages: Schema[][] = [];
   const PARALLEL_LIMIT = 10;
 
@@ -302,6 +366,8 @@ export const getDynamicTemplate = async (
       resultPages.push([]);
       continue;
     }
+
+    const { contentHeight, paddingTop, pageSize, margins } = geometries[pageIndex];
 
     // Normalize this page's schemas
     const { items, orderMap } = normalizePageSchemas(pageSchemas, paddingTop);
@@ -317,6 +383,8 @@ export const getDynamicTemplate = async (
             basePdf,
             options,
             _cache,
+            pageSize,
+            margins,
           }).then(normalizeDynamicLayoutResult);
         }),
       );
@@ -327,7 +395,13 @@ export const getDynamicTemplate = async (
     }
 
     // Process all pages independently (no cross-page offset propagation)
-    const processedPages = processDynamicPage(items, orderMap, contentHeight, paddingTop);
+    const processedPages = processDynamicPage(
+      items,
+      orderMap,
+      contentHeight,
+      paddingTop,
+      allowPageBreak,
+    );
     resultPages.push(...processedPages);
   }
 
@@ -355,5 +429,5 @@ export const getDynamicTemplate = async (
     }
   }
 
-  return { basePdf, schemas: resultPages };
+  return { ...template, basePdf, schemas: resultPages };
 };
