@@ -94,7 +94,7 @@ const UseInlineMarkdown = (props: PropPanelWidgetProps) => {
 };
 
 export const propPanel: PropPanel<TextSchema> = {
-  schema: ({ options, activeSchema, i18n, basePdf }) => {
+  schema: ({ options, activeSchema, schemas, i18n, basePdf }) => {
     const font = options.font || { [DEFAULT_FONT_NAME]: { data: '', fallback: true } };
     const fontNames = Object.keys(font);
     const fallbackFontName = getFallbackFontName(font);
@@ -104,6 +104,21 @@ export const propPanel: PropPanel<TextSchema> = {
     const heightMode = getTextHeightMode(activeTextSchema);
     const indentMode = activeTextSchema.indentMode ?? 'none';
     const canExpandSize = heightMode === 'auto' || getTextWidthMode(activeTextSchema) !== 'fixed';
+    // Only fields that can actually stop horizontal growth are offered: they
+    // must sit to the right of the active field and share its row.
+    const boundaryFieldOptions = (schemas ?? [])
+      .filter(
+        (candidate) =>
+          typeof candidate.layoutId === 'string' &&
+          candidate.name !== activeTextSchema.name &&
+          candidate.position.x > activeTextSchema.position.x &&
+          candidate.position.y < activeTextSchema.position.y + activeTextSchema.height &&
+          candidate.position.y + candidate.height > activeTextSchema.position.y,
+      )
+      .map((candidate) => ({
+        label: `${candidate.name} (${candidate.type})`,
+        value: candidate.layoutId as string,
+      }));
     const isExpand = isTextOverflowExpand(activeTextSchema, basePdf);
     const enableDynamicFont =
       !isExpand && Boolean((activeSchema as { dynamicFontSize?: unknown })?.dynamicFontSize);
@@ -304,11 +319,14 @@ export const propPanel: PropPanel<TextSchema> = {
         },
         span: 8,
       },
-      boundarySchemaName: {
-        title: i18n('fieldName'),
+      // The boundary is persisted as a stable layout ID so renaming the target
+      // field cannot silently break the relationship.
+      boundarySchemaId: {
+        title: i18n('schemas.text.boundaryField'),
         type: 'string',
-        widget: 'input',
+        widget: 'select',
         hidden: activeTextSchema.expansionBoundary !== 'field',
+        props: { options: boundaryFieldOptions, allowClear: true },
         span: 24,
       },
       // Paragraph indentation is stored flat on the schema so the ruler and the

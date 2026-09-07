@@ -13,11 +13,10 @@ const schema = (id: string, y: number, height: number): SchemaForUI => ({
 });
 
 describe('getLiveTextReflowChanges', () => {
-  it('updates the active text box and shifts lower fields by its height delta', () => {
+  it('updates only the active text box for default auto-expand', () => {
     const active = schema('active', 10, 10);
     expect(
       getLiveTextReflowChanges({
-        schemas: [active, schema('lower', 20, 5), schema('above', 2, 5)],
         schema: active,
         width: 25,
         height: 16,
@@ -25,18 +24,13 @@ describe('getLiveTextReflowChanges', () => {
     ).toEqual([
       { key: 'width', value: 25, schemaId: 'active' },
       { key: 'height', value: 16, schemaId: 'active' },
-      { key: 'position.y', value: 26, schemaId: 'lower' },
     ]);
   });
 
-  it('does not move neighbouring fields when the measured height is unchanged', () => {
+  it('applies reduced measured heights as well as expansion', () => {
     const active = schema('active', 10, 10);
-    expect(
-      getLiveTextReflowChanges({
-        schemas: [active, schema('lower', 20, 5)],
-        schema: active,
-        height: 10,
-      }),
-    ).toEqual([]);
+    expect(getLiveTextReflowChanges({ schema: active, height: 6 })).toEqual([
+      { key: 'height', value: 6, schemaId: 'active' },
+    ]);
   });
 });

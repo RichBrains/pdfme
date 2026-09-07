@@ -39,44 +39,63 @@ export const getSnapFeedback = ({
   threshold?: number;
 }): SnapFeedback | null => {
   const positions = [
-    { axis: 'vertical' as const, position: frame.left },
-    { axis: 'vertical' as const, position: frame.left + frame.width / 2 },
-    { axis: 'vertical' as const, position: frame.left + frame.width },
-    { axis: 'horizontal' as const, position: frame.top },
-    { axis: 'horizontal' as const, position: frame.top + frame.height / 2 },
-    { axis: 'horizontal' as const, position: frame.top + frame.height },
+    { axis: 'vertical' as const, position: frame.left, centre: false },
+    { axis: 'vertical' as const, position: frame.left + frame.width / 2, centre: true },
+    { axis: 'vertical' as const, position: frame.left + frame.width, centre: false },
+    { axis: 'horizontal' as const, position: frame.top, centre: false },
+    { axis: 'horizontal' as const, position: frame.top + frame.height / 2, centre: true },
+    { axis: 'horizontal' as const, position: frame.top + frame.height, centre: false },
   ];
-  const match = positions.flatMap(({ axis, position }) =>
-    targets.filter(
-      (target) => target.axis === axis && Math.abs(target.position - position) <= threshold,
-    ),
-  )[0];
-  if (match) {
-    if (match.kind === 'margin') return { key: 'layoutSnapMargin' };
-    if (match.kind === 'guide') return { key: 'layoutSnapGuide' };
-    if (match.kind === 'field') return { key: 'layoutSnapField' };
-    if (match.kind === 'page') {
-      const isCentre =
-        Math.abs(
-          match.position -
-            (match.axis === 'vertical'
-              ? frame.left + frame.width / 2
-              : frame.top + frame.height / 2),
-        ) <= threshold;
-      return { key: isCentre ? 'layoutSnapPageCentre' : 'layoutSnapPageEdge' };
-    }
+  const priority: Record<SnapTargetKind, number> = {
+    guide: 0,
+    field: 1,
+    margin: 2,
+    page: 3,
+    grid: 4,
+  };
+  const candidates = positions.flatMap(({ axis, position, centre }, positionIndex) =>
+    targets
+      .map((target, targetIndex) => ({
+        target,
+        distance: Math.abs(target.position - position),
+        centre,
+        axisIndex: axis === 'vertical' ? 0 : 1,
+        positionIndex,
+        targetIndex,
+      }))
+      .filter((candidate) => candidate.target.axis === axis && candidate.distance <= threshold),
+  );
+  if (gridSpacing) {
+    positions.forEach(({ axis, position, centre }, positionIndex) => {
+      const nearest = Math.round(position / gridSpacing) * gridSpacing;
+      const distance = Math.abs(nearest - position);
+      if (distance <= threshold) {
+        candidates.push({
+          target: { axis, position: nearest, kind: 'grid' },
+          distance,
+          centre,
+          axisIndex: axis === 'vertical' ? 0 : 1,
+          positionIndex,
+          targetIndex: Number.MAX_SAFE_INTEGER,
+        });
+      }
+    });
   }
-  if (
-    gridSpacing &&
-    positions.some(
-      ({ position }) =>
-        Math.abs(position / gridSpacing - Math.round(position / gridSpacing)) <=
-        threshold / gridSpacing,
-    )
-  ) {
-    return { key: 'layoutSnapGrid' };
-  }
-  return null;
+  candidates.sort(
+    (a, b) =>
+      a.distance - b.distance ||
+      priority[a.target.kind] - priority[b.target.kind] ||
+      a.axisIndex - b.axisIndex ||
+      a.positionIndex - b.positionIndex ||
+      a.targetIndex - b.targetIndex,
+  );
+  const match = candidates[0];
+  if (!match) return null;
+  if (match.target.kind === 'margin') return { key: 'layoutSnapMargin' };
+  if (match.target.kind === 'guide') return { key: 'layoutSnapGuide' };
+  if (match.target.kind === 'field') return { key: 'layoutSnapField' };
+  if (match.target.kind === 'grid') return { key: 'layoutSnapGrid' };
+  return { key: match.centre ? 'layoutSnapPageCentre' : 'layoutSnapPageEdge' };
 };
 
 const add = (

@@ -462,6 +462,7 @@ describe('text dynamic layout', () => {
       }),
     ).toEqual({
       dynamicFontSize: undefined,
+      minHeight: 5,
       __splitRange: { unit: 'textLine', start: 0, end: 1 },
       __isSplit: false,
     });
@@ -491,6 +492,7 @@ describe('text dynamic layout', () => {
       }),
     ).toEqual({
       dynamicFontSize: undefined,
+      minHeight: 5,
       __splitRange: { unit: 'textLine', start: 1, end: 3 },
       __isSplit: true,
     });
@@ -1332,10 +1334,83 @@ describe('text sizing modes', () => {
     expect(getAvailableTextWidth(schema, { pageSize, margins })).toBe(80);
   });
 
-  it('stops available width at another field when requested', () => {
+  it('stops available width at another field resolved by stable id', () => {
     const schema = {
       ...getTextSchema(),
       position: { x: 20, y: 0 },
+      height: 10,
+      expansionBoundary: 'field' as const,
+      boundarySchemaId: 'stopper-id',
+    };
+
+    expect(
+      getAvailableTextWidth(schema, {
+        pageSize,
+        margins,
+        siblings: [
+          {
+            layoutId: 'stopper-id',
+            name: 'renamed later',
+            position: { x: 60, y: 0 },
+            width: 10,
+            height: 10,
+          },
+        ],
+      }),
+    ).toBe(40);
+  });
+
+  it('ignores a boundary field that does not share the active row', () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 20, y: 0 },
+      height: 10,
+      expansionBoundary: 'field' as const,
+      boundarySchemaId: 'footer-id',
+    };
+
+    expect(
+      getAvailableTextWidth(schema, {
+        pageSize,
+        margins,
+        siblings: [
+          {
+            layoutId: 'footer-id',
+            name: 'footer',
+            position: { x: 60, y: 200 },
+            width: 10,
+            height: 10,
+          },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('ignores a boundary field positioned to the left of the active field', () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 60, y: 0 },
+      height: 10,
+      expansionBoundary: 'field' as const,
+      boundarySchemaId: 'left-id',
+    };
+
+    expect(
+      getAvailableTextWidth(schema, {
+        pageSize,
+        margins,
+        siblings: [
+          { layoutId: 'left-id', name: 'left', position: { x: 10, y: 0 }, width: 10, height: 10 },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('still resolves legacy name-based boundary references', () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 20, y: 0 },
+      height: 10,
       expansionBoundary: 'field' as const,
       boundarySchemaName: 'stopper',
     };
@@ -1347,6 +1422,61 @@ describe('text sizing modes', () => {
         siblings: [{ name: 'stopper', position: { x: 60, y: 0 }, width: 10, height: 10 }],
       }),
     ).toBe(40);
+  });
+
+  it('contracts auto-height text back to its minimum height', async () => {
+    const schema = {
+      ...getTextSchema(),
+      height: 40,
+      minHeight: 5,
+      width: 60,
+      overflow: 'expand' as const,
+    };
+
+    const result = await getDynamicLayoutForText('one line', {
+      schema,
+      basePdf: { width: 100, height: 100, padding: [0, 0, 0, 0] },
+      options: { font: getSampleFont() },
+      _cache: new Map<string | number, unknown>(),
+    });
+
+    expect(result.heights).toHaveLength(1);
+    expect(result.heights[0]).toBeLessThan(40);
+    expect(result.heights[0]).toBeGreaterThanOrEqual(5);
+  });
+
+  it('passes same-page siblings into the boundary context', async () => {
+    const schema = {
+      ...getTextSchema(),
+      position: { x: 10, y: 0 },
+      width: 10,
+      height: 10,
+      widthMode: 'fill' as const,
+      expansionBoundary: 'field' as const,
+      boundarySchemaId: 'stopper-id',
+    };
+
+    const result = await getDynamicLayoutForText('hello', {
+      schema,
+      basePdf: { width: 100, height: 100, padding: [0, 0, 0, 0] },
+      options: { font: getSampleFont() },
+      _cache: new Map<string | number, unknown>(),
+      pageSize: { width: 100, height: 100 },
+      margins: { top: 0, right: 0, bottom: 0, left: 0 },
+      siblings: [
+        {
+          layoutId: 'stopper-id',
+          name: 'stopper',
+          type: 'text',
+          position: { x: 40, y: 0 },
+          width: 10,
+          height: 10,
+        },
+      ],
+    });
+
+    expect(result.patchSplitSchema?.({ schema, start: 0, end: 1, isSplit: false, chunkHeight: 10 }))
+      .toMatchObject({ width: 30 });
   });
 
   it('does not constrain manual or overlapping fields', () => {

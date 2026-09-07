@@ -71,8 +71,12 @@ export type TextSchema = Schema & {
   indentMode?: PARAGRAPH_INDENT_MODE;
   widthMode?: TEXT_WIDTH_MODE;
   heightMode?: TEXT_HEIGHT_MODE;
+  /** Minimum auto-height in mm. Defaults to the authored height when first expanded. */
+  minHeight?: number;
   expansionBoundary?: TEXT_EXPANSION_BOUNDARY;
-  /** Name of the field used as expansion boundary when `expansionBoundary` is `field`. */
+  /** Persisted layout ID of the field used when `expansionBoundary` is `field`. */
+  boundarySchemaId?: string;
+  /** @deprecated Use `boundarySchemaId`; retained to read older templates. */
   boundarySchemaName?: string;
   /** First-line / hanging indent amount in mm. */
   specialIndent?: number;

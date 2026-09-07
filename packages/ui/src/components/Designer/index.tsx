@@ -389,8 +389,12 @@ const TemplateEditor = ({
     const ensureMiddleValue = (min: number, value: number, max: number) =>
       Math.min(Math.max(min, value), max);
 
+    // The interactive id doubles as the persisted layout identity so that
+    // relationships such as expansion boundaries survive save/reload.
+    const layoutId = uuid();
     const s = {
-      id: uuid(),
+      id: layoutId,
+      layoutId,
       ...defaultSchema,
       name: newSchemaName(i18n('field')),
       position: {

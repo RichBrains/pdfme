@@ -35,7 +35,13 @@ export type TextBoundaryContext = {
   pageSize?: Size;
   margins?: PageMargins;
   /** Fields that can act as an expansion boundary, in page coordinates (mm). */
-  siblings?: { name: string; position: { x: number; y: number }; width: number; height: number }[];
+  siblings?: {
+    layoutId?: string;
+    name: string;
+    position: { x: number; y: number };
+    width: number;
+    height: number;
+  }[];
 };
 
 /**
@@ -46,7 +52,12 @@ export type TextBoundaryContext = {
 export const getAvailableTextWidth = (
   schema: Pick<
     TextSchema,
-    'position' | 'width' | 'height' | 'expansionBoundary' | 'boundarySchemaName'
+    | 'position'
+    | 'width'
+    | 'height'
+    | 'expansionBoundary'
+    | 'boundarySchemaId'
+    | 'boundarySchemaName'
   >,
   context: TextBoundaryContext,
 ): number | undefined => {
@@ -56,8 +67,19 @@ export const getAvailableTextWidth = (
   if (boundary === 'manual' || boundary === 'allow-overlap') return undefined;
 
   if (boundary === 'field') {
-    const target = siblings?.find((sibling) => sibling.name === schema.boundarySchemaName);
-    if (!target) return undefined;
+    const target = siblings?.find(
+      (sibling) =>
+        (schema.boundarySchemaId && sibling.layoutId === schema.boundarySchemaId) ||
+        (!schema.boundarySchemaId && sibling.name === schema.boundarySchemaName),
+    );
+    // A field is a horizontal boundary only when it sits to the right and
+    // overlaps the active field's row. This prevents a sidebar/header/footer
+    // from unexpectedly constraining an unrelated text field.
+    const overlapsRow =
+      target &&
+      target.position.y < schema.position.y + schema.height &&
+      target.position.y + target.height > schema.position.y;
+    if (!target || !overlapsRow || target.position.x <= schema.position.x) return undefined;
     return Math.max(0, target.position.x - schema.position.x);
   }
 

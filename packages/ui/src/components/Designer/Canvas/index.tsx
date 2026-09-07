@@ -21,6 +21,7 @@ import {
   getPageLayout,
   isOutsideContentBounds,
   getTemplateContentBounds,
+  getReflowScope,
   replacePlaceholders,
   Font,
 } from '@pdfme/common';
@@ -389,6 +390,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           schema,
           width: typeof patch.width === 'number' ? patch.width : undefined,
           height: measuredHeight,
+          scope: getReflowScope(pageLayout),
+          maxBottom: contentBounds.bottom,
         }),
       ];
       pendingTextReflowRef.current = null;
@@ -553,108 +556,113 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
         pageSizes={pageSizes}
         backgrounds={backgrounds}
         hasRulers={true}
-        renderPaper={({ index, paperSize }) => (
-          <>
-            {!editing && activeElements.length > 0 && pageCursor === index && (
-              <DeleteButton activeElements={activeElements} controlScale={controlScale} />
-            )}
-            {snapFeedback && pageCursor === index && activeElements[0] && (
-              <div
-                aria-live="polite"
-                style={{
-                  position: 'absolute',
-                  zIndex: 6,
-                  left: fmt4Num(activeElements[0].style.left),
-                  top: fmt4Num(activeElements[0].style.top) - 24,
-                  padding: '2px 6px',
-                  borderRadius: 3,
-                  color: token.colorWhite,
-                  background: token.colorPrimary,
-                  fontSize: 11,
-                  pointerEvents: 'none',
-                }}
-              >
-                {snapFeedback}
-              </div>
-            )}
-            <Grid
-              grid={getPageLayout(template, index).grid}
-              pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }}
-            />
-            <Padding template={template} pageIndex={index} />
-            <StaticSchema
-              template={{ schemas: schemasList, basePdf }}
-              input={Object.fromEntries(
-                schemasList.flat().map(({ name, content = '' }) => [name, content]),
+        renderPaper={({ index, paperSize }) => {
+          const layout = getPageLayout(template, index);
+          return (
+            <>
+              {!editing && activeElements.length > 0 && pageCursor === index && (
+                <DeleteButton activeElements={activeElements} controlScale={controlScale} />
               )}
-              scale={renderScale}
-              totalPages={schemasList.length}
-              currentPage={index + 1}
-            />
-            <Guides
-              paperSize={paperSize}
-              horizontalRef={(e) => {
-                if (e) horizontalGuides.current[index] = e;
-              }}
-              verticalRef={(e) => {
-                if (e) verticalGuides.current[index] = e;
-              }}
-              horizontalGuides={pageLayout.horizontalGuides.map((guide) => guide.position)}
-              verticalGuides={pageLayout.verticalGuides.map((guide) => guide.position)}
-              onChangeHorizontalGuides={(guides) => setGuides('horizontalGuides', guides)}
-              onChangeVerticalGuides={(guides) => setGuides('verticalGuides', guides)}
-            />
-            {pageCursor === index &&
-              activeElements.length === 1 &&
-              isTextIndentSchema(selectedSchema) && (
-                <IndentMarkers
-                  schema={selectedSchema}
-                  paperElement={paperRefs.current[index]}
-                  scale={scale}
-                  onChange={(key, value) =>
-                    changeSchemas([{ key, value: round(value, 2), schemaId: selectedSchema.id }])
-                  }
-                />
+              {snapFeedback && pageCursor === index && activeElements[0] && (
+                <div
+                  aria-live="polite"
+                  style={{
+                    position: 'absolute',
+                    zIndex: 6,
+                    left: fmt4Num(activeElements[0].style.left),
+                    top: fmt4Num(activeElements[0].style.top) - 24,
+                    padding: '2px 6px',
+                    borderRadius: 3,
+                    color: token.colorWhite,
+                    background: token.colorPrimary,
+                    fontSize: 11,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {snapFeedback}
+                </div>
               )}
-            {pageCursor !== index ? (
-              <Mask
-                width={paperSize.width + RULER_HEIGHT}
-                height={paperSize.height + RULER_HEIGHT}
+              <Grid
+                grid={getPageLayout(template, index).grid}
+                pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }}
               />
-            ) : (
-              !editing && (
-                <Moveable
-                  ref={moveable}
-                  target={activeElements}
-                  controlScale={controlScale}
-                  bounds={{ left: 0, top: 0, bottom: paperSize.height, right: paperSize.width }}
-                  horizontalGuidelines={snapTargets.horizontal.map((position) => position * ZOOM)}
-                  verticalGuidelines={snapTargets.vertical.map((position) => position * ZOOM)}
-                  elementGuidelines={schemasList[pageCursor]
-                    .filter((schema) => !activeElements.some((element) => element.id === schema.id))
-                    .map((schema) => document.getElementById(schema.id))
-                    .filter((element): element is HTMLElement => element instanceof HTMLElement)}
-                  snapEnabled={!isPressAltKey}
-                  snapGridSize={
-                    snapTargets.gridSpacing ? snapTargets.gridSpacing * ZOOM : undefined
-                  }
-                  keepRatio={isPressShiftKey}
-                  rotatable={rotatable}
-                  onDrag={onDrag}
-                  onDragEnd={onDragEnd}
-                  onDragGroupEnd={onDragEnds}
-                  onRotate={onRotate}
-                  onRotateEnd={onRotateEnd}
-                  onRotateGroupEnd={onRotateEnds}
-                  onResize={onResize}
-                  onResizeEnd={onResizeEnd}
-                  onResizeGroupEnd={onResizeEnds}
-                  onClick={onClickMoveable}
+              <Padding template={template} pageIndex={index} />
+              <StaticSchema
+                template={{ schemas: schemasList, basePdf }}
+                input={Object.fromEntries(
+                  schemasList.flat().map(({ name, content = '' }) => [name, content]),
+                )}
+                scale={renderScale}
+                totalPages={schemasList.length}
+                currentPage={index + 1}
+              />
+              <Guides
+                paperSize={paperSize}
+                horizontalRef={(e) => {
+                  if (e) horizontalGuides.current[index] = e;
+                }}
+                verticalRef={(e) => {
+                  if (e) verticalGuides.current[index] = e;
+                }}
+                horizontalGuides={layout.horizontalGuides.map((guide) => guide.position)}
+                verticalGuides={layout.verticalGuides.map((guide) => guide.position)}
+                onChangeHorizontalGuides={(guides) => setGuides('horizontalGuides', guides)}
+                onChangeVerticalGuides={(guides) => setGuides('verticalGuides', guides)}
+              />
+              {pageCursor === index &&
+                activeElements.length === 1 &&
+                isTextIndentSchema(selectedSchema) && (
+                  <IndentMarkers
+                    schema={selectedSchema}
+                    paperElement={paperRefs.current[index]}
+                    scale={scale}
+                    onChange={(key, value) =>
+                      changeSchemas([{ key, value: round(value, 2), schemaId: selectedSchema.id }])
+                    }
+                  />
+                )}
+              {pageCursor !== index ? (
+                <Mask
+                  width={paperSize.width + RULER_HEIGHT}
+                  height={paperSize.height + RULER_HEIGHT}
                 />
-              )
-            )}
-          </>
-        )}
+              ) : (
+                !editing && (
+                  <Moveable
+                    ref={moveable}
+                    target={activeElements}
+                    controlScale={controlScale}
+                    bounds={{ left: 0, top: 0, bottom: paperSize.height, right: paperSize.width }}
+                    horizontalGuidelines={snapTargets.horizontal.map((position) => position * ZOOM)}
+                    verticalGuidelines={snapTargets.vertical.map((position) => position * ZOOM)}
+                    elementGuidelines={schemasList[pageCursor]
+                      .filter(
+                        (schema) => !activeElements.some((element) => element.id === schema.id),
+                      )
+                      .map((schema) => document.getElementById(schema.id))
+                      .filter((element): element is HTMLElement => element instanceof HTMLElement)}
+                    snapEnabled={!isPressAltKey}
+                    snapGridSize={
+                      snapTargets.gridSpacing ? snapTargets.gridSpacing * ZOOM : undefined
+                    }
+                    keepRatio={isPressShiftKey}
+                    rotatable={rotatable}
+                    onDrag={onDrag}
+                    onDragEnd={onDragEnd}
+                    onDragGroupEnd={onDragEnds}
+                    onRotate={onRotate}
+                    onRotateEnd={onRotateEnd}
+                    onRotateGroupEnd={onRotateEnds}
+                    onResize={onResize}
+                    onResizeEnd={onResizeEnd}
+                    onResizeGroupEnd={onResizeEnds}
+                    onClick={onClickMoveable}
+                  />
+                )
+              )}
+            </>
+          );
+        }}
         renderSchema={({ schema, index }) => {
           const mode =
             editing && activeElements.map((ae) => ae.id).includes(schema.id)

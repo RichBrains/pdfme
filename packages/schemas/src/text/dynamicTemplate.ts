@@ -22,7 +22,7 @@ export const getDynamicLayoutForText = async (
   const resolvedWidth = await resolveTextWidth({
     value,
     schema: authoredSchema,
-    context: { pageSize: args.pageSize, margins: args.margins },
+    context: { pageSize: args.pageSize, margins: args.margins, siblings: args.siblings },
     font: args.options.font,
     _cache: args._cache,
   });
@@ -51,20 +51,28 @@ export const getDynamicLayoutForText = async (
   });
   const heights = getTextLineHeightsWithBox(lineHeights, schema);
   const measuredHeight = sumLineHeights(heights);
+  // `minHeight` is persisted the first time an auto-height field expands, so
+  // later edits can contract it without losing the original authored minimum.
+  const minHeight = schema.minHeight ?? schema.height;
+  const resolvedHeight = Math.max(minHeight, measuredHeight);
+  const heightPatch = { minHeight };
 
-  if (measuredHeight <= schema.height || lineHeights.length === 0) {
+  // Content that already fits keeps a single unit: splitting it here would
+  // introduce page breaks for text that never overflowed.
+  if (measuredHeight <= minHeight || lineHeights.length <= 1) {
     return {
-      heights: [schema.height],
-      patchSplitSchema: () => ({ dynamicFontSize: undefined, ...widthPatch }),
+      heights: [resolvedHeight],
+      patchSplitSchema: () => ({ dynamicFontSize: undefined, ...widthPatch, ...heightPatch }),
     };
   }
 
   return {
-    heights: lineHeights.length === 1 ? [Math.max(schema.height, measuredHeight)] : heights,
+    heights,
     patchSplitSchema: ({ start, end, isSplit }) => ({
       dynamicFontSize: undefined,
       ...widthPatch,
-      __splitRange: lineHeights.length === 1 ? undefined : createTextLineSplitRange(start, end),
+      ...heightPatch,
+      __splitRange: createTextLineSplitRange(start, end),
       __isSplit: isSplit,
       ...getTextSplitBoxStyle(schema, { start, end }, lineHeights.length),
     }),

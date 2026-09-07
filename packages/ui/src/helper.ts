@@ -275,7 +275,8 @@ export const arrayBufferToBase64 = (arrayBuffer: ArrayBuffer): string => {
 const convertSchemasForUI = (template: Template): SchemaForUI[][] => {
   template.schemas.forEach((page) => {
     page.forEach((schema) => {
-      (schema as SchemaForUI).id = uuid();
+      schema.layoutId ??= uuid();
+      (schema as SchemaForUI).id = schema.layoutId;
       (schema as SchemaForUI).content = schema.content || '';
     });
   });

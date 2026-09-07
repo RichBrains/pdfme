@@ -7,10 +7,11 @@ import {
   DynamicLayoutCallbackResult,
   DynamicLayoutResult,
   PageMargins,
+  ReflowScope,
   Size,
 } from './types.js';
 import { cloneDeep, isBlankPdf } from './helper.js';
-import { getPageMargins } from './layout.js';
+import { getPageLayout, getPageMargins, getReflowScope } from './layout.js';
 import { replacePlaceholders } from './expression.js';
 
 /** Floating point tolerance for comparisons */
@@ -30,6 +31,7 @@ interface ModifyTemplateForDynamicTableArg {
       _cache: Map<string | number, unknown>;
       pageSize?: Size;
       margins?: PageMargins;
+      siblings?: Schema[];
     },
   ) => Promise<DynamicLayoutCallbackResult>;
   /**
@@ -297,12 +299,20 @@ function processDynamicPage(
   contentHeight: number,
   paddingTop: number,
   allowPageBreak: boolean,
+  scope: ReflowScope,
 ): Schema[][] {
   const pages: Schema[][] = [];
-  let totalYOffset = 0;
+  // With the `page` scope a single running offset shifts everything below the
+  // grown field. With the `flow` scope each named flow keeps its own offset, so
+  // fields outside that flow stay where the author placed them.
+  const offsets = new Map<string, number>();
+  const flowKeyOf = (schema: Schema) =>
+    scope === 'page' ? '' : ((schema as { layoutFlow?: string }).layoutFlow ?? '');
+  const offsetFor = (key: string) => (key === '' && scope === 'flow' ? 0 : (offsets.get(key) ?? 0));
 
   for (const item of items) {
-    const currentGlobalStartY = item.baseY + totalYOffset;
+    const flowKey = flowKeyOf(item.schema);
+    const currentGlobalStartY = item.baseY + offsetFor(flowKey);
 
     const actualGlobalEndY = placeUnitsOnPages(
       item.schema,
@@ -315,7 +325,9 @@ function processDynamicPage(
 
     // Update offset: difference between actual and original end position
     const originalGlobalEndY = item.baseY + item.height;
-    totalYOffset = actualGlobalEndY - originalGlobalEndY;
+    if (flowKey !== '' || scope === 'page') {
+      offsets.set(flowKey, actualGlobalEndY - originalGlobalEndY);
+    }
   }
 
   sortPagesByOrder(pages, orderMap);
@@ -385,6 +397,7 @@ export const getDynamicTemplate = async (
             _cache,
             pageSize,
             margins,
+            siblings: pageSchemas.filter((sibling) => sibling !== item.schema),
           }).then(normalizeDynamicLayoutResult);
         }),
       );
@@ -401,6 +414,7 @@ export const getDynamicTemplate = async (
       contentHeight,
       paddingTop,
       allowPageBreak,
+      getReflowScope(getPageLayout(template, pageIndex)),
     );
     resultPages.push(...processedPages);
   }

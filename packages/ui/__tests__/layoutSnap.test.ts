@@ -90,4 +90,25 @@ describe('getSnapFeedback', () => {
       }),
     ).toEqual({ key: 'layoutSnapGrid' });
   });
+
+  it('uses nearest distance, then source priority, deterministically', () => {
+    expect(
+      getSnapFeedback({
+        targets: [
+          { axis: 'vertical', position: 10.1, kind: 'margin' },
+          { axis: 'vertical', position: 10.1, kind: 'guide' },
+        ],
+        frame: { left: 10, top: 50, width: 2, height: 2 },
+        threshold: 0.2,
+      }),
+    ).toEqual({ key: 'layoutSnapGuide' });
+    expect(
+      getSnapFeedback({
+        targets: [{ axis: 'vertical', position: 10.15, kind: 'guide' }],
+        gridSpacing: 5,
+        frame: { left: 10.02, top: 50, width: 2, height: 2 },
+        threshold: 0.2,
+      }),
+    ).toEqual({ key: 'layoutSnapGrid' });
+  });
 });

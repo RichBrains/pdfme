@@ -1,5 +1,7 @@
 import {
   clampToContentBounds,
+  getReflowFollowers,
+  getReflowScope,
   getContentBounds,
   getDefaultPageLayout,
   getDefaultPageMargins,
@@ -118,5 +120,54 @@ describe('grid', () => {
   it('lists interior grid lines only', () => {
     expect(getGridLinePositions(20, 5)).toEqual([5, 10, 15]);
     expect(getGridLinePositions(20, 0)).toEqual([]);
+  });
+});
+
+describe('reflow scope', () => {
+  const field = (name: string, y: number, layoutFlow?: string) => ({
+    name,
+    position: { x: 0, y },
+    height: 10,
+    ...(layoutFlow ? { layoutFlow } : {}),
+  });
+
+  it('defaults to page scope for backward compatibility', () => {
+    expect(getReflowScope(getDefaultPageLayout(customPdf))).toBe('page');
+    expect(getReflowScope({ ...getDefaultPageLayout(customPdf), reflowScope: undefined })).toBe(
+      'page',
+    );
+  });
+
+  it('moves every lower field in page scope', () => {
+    const active = field('body', 10);
+    const followers = getReflowFollowers({
+      schema: active,
+      schemas: [active, field('logo', 40), field('header', 0)],
+      scope: 'page',
+    });
+
+    expect(followers.map((item) => item.name)).toEqual(['logo']);
+  });
+
+  it('moves only same-flow fields in flow scope', () => {
+    const active = field('body', 10, 'letter');
+    const followers = getReflowFollowers({
+      schema: active,
+      schemas: [active, field('closing', 40, 'letter'), field('logo', 50)],
+      scope: 'flow',
+    });
+
+    expect(followers.map((item) => item.name)).toEqual(['closing']);
+  });
+
+  it('moves nothing in flow scope when the field has no flow', () => {
+    const active = field('body', 10);
+    expect(
+      getReflowFollowers({
+        schema: active,
+        schemas: [active, field('lower', 40, 'letter')],
+        scope: 'flow',
+      }),
+    ).toEqual([]);
   });
 });

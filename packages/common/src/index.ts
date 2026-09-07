@@ -36,6 +36,7 @@ import type {
   GridSettings,
   RulerGuide,
   PageLayoutSettings,
+  ReflowScope,
   TemplateLayout,
   Template,
   CommonOptions,
@@ -105,6 +106,9 @@ import {
   snapValueToGrid,
   getGridLinePositions,
   getGuidePositions,
+  DEFAULT_REFLOW_SCOPE,
+  getReflowScope,
+  getReflowFollowers,
 } from './layout.js';
 import { createDynamicLayoutSplitRange, getDynamicLayoutSplitRange } from './splitRange.js';
 import { replacePlaceholders } from './expression.js';
@@ -173,6 +177,9 @@ export {
   snapValueToGrid,
   getGridLinePositions,
   getGuidePositions,
+  DEFAULT_REFLOW_SCOPE,
+  getReflowScope,
+  getReflowFollowers,
 };
 
 export type { ContentBounds } from './layout.js';
@@ -194,6 +201,7 @@ export type {
   GridSettings,
   RulerGuide,
   PageLayoutSettings,
+  ReflowScope,
   TemplateLayout,
   Template,
   CommonOptions,

@@ -719,7 +719,9 @@ export const useInitEvents = ({
             y: p.y + 10 > ps.height - height ? ps.height - height : p.y + 10,
           };
 
-          return Object.assign(cloneDeep(cs), { id, name, position });
+          // A pasted field is a new field: it must not reuse the copied
+          // layout identity, or boundary references would follow the copy.
+          return Object.assign(cloneDeep(cs), { id, layoutId: id, name, position });
         });
         commitSchemas(schemasList[pageCursor].concat(pasteSchemas));
         setTimeout(() => {

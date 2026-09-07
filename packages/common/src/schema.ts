@@ -178,6 +178,13 @@ export const Schema = z
   .object({
     name: z.string(),
     type: z.string(),
+    /** Persisted layout identity used by relationships such as field expansion boundaries. */
+    layoutId: z.string().optional(),
+    /**
+     * Optional named layout flow. Fields sharing a flow move together when a
+     * member expands, which keeps absolutely positioned artwork untouched.
+     */
+    layoutFlow: z.string().optional(),
     content: z.string().optional(),
     position: z.object({ x: z.number(), y: z.number() }),
     width: z.number(),
@@ -234,8 +241,15 @@ export const RulerGuide = z.object({
   locked: z.boolean().optional(),
 });
 
+/**
+ * `page` keeps the historical behavior where every field below an expanding
+ * field moves. `flow` restricts movement to fields sharing a `layoutFlow`.
+ */
+export const ReflowScope = z.enum(['page', 'flow']);
+
 export const PageLayoutSettings = z.object({
   margins: PageMargins,
+  reflowScope: ReflowScope.optional(),
   showMargins: z.boolean(),
   grid: GridSettings,
   /** Guides running horizontally (snap on the y axis). */

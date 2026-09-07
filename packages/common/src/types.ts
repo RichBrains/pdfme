@@ -16,6 +16,7 @@ import {
   GridSettings,
   RulerGuide,
   PageLayoutSettings,
+  ReflowScope,
   TemplateLayout,
   CommonOptions,
   Template,
@@ -252,6 +253,7 @@ export type PageMargins = z.infer<typeof PageMargins>;
 export type GridSettings = z.infer<typeof GridSettings>;
 export type RulerGuide = z.infer<typeof RulerGuide>;
 export type PageLayoutSettings = z.infer<typeof PageLayoutSettings>;
+export type ReflowScope = z.infer<typeof ReflowScope>;
 export type TemplateLayout = z.infer<typeof TemplateLayout>;
 export type Template = z.infer<typeof Template>;
 export type CommonOptions = z.infer<typeof CommonOptions>;
@@ -289,6 +291,8 @@ export type DynamicLayoutArgs = {
   pageSize?: Size;
   /** Configured page margins (mm) of that page, when known. */
   margins?: PageMargins;
+  /** Other fields on the same page, used by schema-specific layout constraints. */
+  siblings?: Schema[];
 };
 
 export type GetDynamicLayout = (

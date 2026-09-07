@@ -1,5 +1,6 @@
 import type {
   BasePdf,
+  ReflowScope,
   GridSettings,
   PageLayoutSettings,
   PageMargins,
@@ -42,8 +43,11 @@ export const getDefaultPageMargins = (basePdf: BasePdf): PageMargins => {
   return { top: 0, right: 0, bottom: 0, left: 0 };
 };
 
+export const DEFAULT_REFLOW_SCOPE: ReflowScope = 'page';
+
 export const getDefaultPageLayout = (basePdf: BasePdf): PageLayoutSettings => ({
   margins: getDefaultPageMargins(basePdf),
+  reflowScope: DEFAULT_REFLOW_SCOPE,
   showMargins: true,
   grid: getDefaultGridSettings(),
   horizontalGuides: [],
@@ -123,3 +127,31 @@ export const getGridLinePositions = (length: number, spacingMm: number): number[
 
 export const getGuidePositions = (guides: RulerGuide[]): number[] =>
   guides.map((guide) => guide.position);
+
+export const getReflowScope = (layout: PageLayoutSettings): ReflowScope =>
+  layout.reflowScope ?? DEFAULT_REFLOW_SCOPE;
+
+/**
+ * Fields that should move when `schema` grows.
+ *
+ * With the `page` scope every field lower on the page follows, which matches
+ * historical pdfme behavior. With the `flow` scope only fields sharing the same
+ * `layoutFlow` follow, so absolutely positioned artwork such as logos,
+ * signatures, or sidebars stays where the author put it.
+ */
+export const getReflowFollowers = <
+  T extends Pick<Schema, 'position' | 'height'> & { layoutFlow?: string },
+>(arg: {
+  schema: T;
+  schemas: T[];
+  scope: ReflowScope;
+}): T[] => {
+  const { schema, schemas, scope } = arg;
+  const bottom = schema.position.y + schema.height;
+  return schemas.filter((candidate) => {
+    if (candidate === schema) return false;
+    if (candidate.position.y < bottom) return false;
+    if (scope === 'page') return true;
+    return Boolean(schema.layoutFlow) && candidate.layoutFlow === schema.layoutFlow;
+  });
+};
