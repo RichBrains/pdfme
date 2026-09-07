@@ -339,6 +339,12 @@ export const UIOptions = CommonOptions.extend({
   maxZoom: z.number().optional(),
   sidebarOpen: z.boolean().optional(),
   zoomLevel: z.number().optional(),
+  /**
+   * Hides the page-layout panel (margins, grid, snap-to-grid) from the
+   * right-sidebar field list. Use this when the host application exposes
+   * those settings through its own UI instead.
+   */
+  hideLayoutPanel: z.boolean().optional(),
 });
 
 const HTMLElementSchema: z.ZodSchema<HTMLElement> = z.any().refine((v) => v instanceof HTMLElement);

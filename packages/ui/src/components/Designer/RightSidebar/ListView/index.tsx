@@ -1,7 +1,7 @@
 import React, { useContext, useState } from 'react';
 import type { SidebarProps } from '../../../../types.js';
 import { DESIGNER_CLASSNAME } from '../../../../constants.js';
-import { I18nContext } from '../../../../contexts.js';
+import { I18nContext, OptionsContext } from '../../../../contexts.js';
 import { Input, Typography, Button } from 'antd';
 import SelectableSortableContainer from './SelectableSortableContainer.js';
 import LayoutSettings from './LayoutSettings.js';
@@ -36,6 +36,7 @@ const ListView = (
     onChangePageLayout,
   } = props;
   const i18n = useContext(I18nContext);
+  const options = useContext(OptionsContext);
   const [isBulkUpdateFieldNamesMode, setIsBulkUpdateFieldNamesMode] = useState(false);
   const [fieldNamesValue, setFieldNamesValue] = useState('');
 
@@ -89,11 +90,13 @@ const ListView = (
               onSortEnd={onSortEnd}
               onEdit={onEdit}
             />
-            <LayoutSettings
-              template={template}
-              pageIndex={pageIndex}
-              onChangePageLayout={onChangePageLayout}
-            />
+            {!options.hideLayoutPanel && (
+              <LayoutSettings
+                template={template}
+                pageIndex={pageIndex}
+                onChangePageLayout={onChangePageLayout}
+              />
+            )}
           </>
         )}
       </SidebarBody>
