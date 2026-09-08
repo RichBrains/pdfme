@@ -19,6 +19,7 @@ import {
   isBlankPdf,
   px2mm,
   getPageLayout,
+  getContentBounds,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
@@ -418,6 +419,28 @@ const TemplateEditor = ({
       const paper = paperRefs.current[pageCursor];
       const rectTop = paper ? paper.getBoundingClientRect().top : 0;
       s.position.y = rectTop > 0 ? paddingTop : pageSizes[pageCursor].height / 2;
+    }
+
+    // A newly added text field with the default `widthMode: 'fill'` should
+    // immediately span the available width, like a word processor, rather
+    // than showing the small fallback `width` until content is edited and
+    // the dynamic-layout reflow resolves it. Mirrors the 'page'/'margin'
+    // cases of @pdfme/schemas' getAvailableTextWidth for the common,
+    // sibling-independent boundaries.
+    const sWithTextProps = s as unknown as {
+      widthMode?: unknown;
+      expansionBoundary?: unknown;
+    };
+    if (s.type === 'text' && sWithTextProps.widthMode === 'fill') {
+      const boundary = sWithTextProps.expansionBoundary;
+      const availableWidth =
+        boundary === 'page'
+          ? pageSize.width - s.position.x
+          : getContentBounds(getPageLayout(template, pageCursor).margins, pageSize).right -
+            s.position.x;
+      if (availableWidth > 0) {
+        s.width = availableWidth;
+      }
     }
 
     commitSchemas(schemasList[pageCursor].concat(s));

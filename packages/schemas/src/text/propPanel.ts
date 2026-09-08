@@ -437,6 +437,10 @@ export const propPanel: PropPanel<TextSchema> = {
     content: 'Type Something...',
     position: { x: 0, y: 0 },
     width: 45,
+    // New text fields span the full available width by default, like a
+    // word processor; the exact `width` above is only a fallback used
+    // before layout resolves the fill width, or if a host disables fill.
+    widthMode: 'fill',
     height: 10,
     // If the value of "rotate" is set to undefined or not set at all, rotation will be disabled in the UI.
     // Check this document: https://pdfme.com//docs/custom-schemas#learning-how-to-create-from-pdfmeschemas-code
