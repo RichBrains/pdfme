@@ -31,7 +31,6 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
     const isVertical = ['left', 'center', 'right'].includes(type);
     const tgtPos = isVertical ? 'x' : 'y';
     const tgtSize = isVertical ? 'width' : 'height';
-    const isSingle = ass.length === 1;
     // Access pageSize property safely with proper type assertion
     const pageExtent =
       pageSize && typeof pageSize === 'object'
@@ -62,7 +61,7 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
 
     // Access position properties safely with proper type assertion
     const min =
-      isSingle && reference !== 'selection'
+      reference !== 'selection'
         ? rootStart
         : Math.min(
             ...ass.map((as) => {
@@ -75,7 +74,7 @@ const AlignWidget = (props: PropPanelWidgetProps) => {
             }),
           );
     const max =
-      isSingle && reference !== 'selection'
+      reference !== 'selection'
         ? rootStart + root
         : Math.max(
             ...ass.map((as) => {
