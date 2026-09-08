@@ -581,12 +581,12 @@ exports[`Designer snapshot 1`] = `
                   >
                     <input
                       aria-valuemin="0"
-                      aria-valuenow="0"
+                      aria-valuenow="20"
                       autocomplete="off"
                       class="ant-input-number-input"
                       role="spinbutton"
                       step="1"
-                      value="0"
+                      value="20"
                     />
                     <div
                       class="ant-input-number-actions"
@@ -619,9 +619,9 @@ exports[`Designer snapshot 1`] = `
                         </span>
                       </span>
                       <span
-                        aria-disabled="true"
+                        aria-disabled="false"
                         aria-label="Decrease Value"
-                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        class="ant-input-number-action ant-input-number-action-down"
                         role="button"
                         unselectable="on"
                       >
@@ -655,12 +655,12 @@ exports[`Designer snapshot 1`] = `
                   >
                     <input
                       aria-valuemin="0"
-                      aria-valuenow="0"
+                      aria-valuenow="20"
                       autocomplete="off"
                       class="ant-input-number-input"
                       role="spinbutton"
                       step="1"
-                      value="0"
+                      value="20"
                     />
                     <div
                       class="ant-input-number-actions"
@@ -693,9 +693,9 @@ exports[`Designer snapshot 1`] = `
                         </span>
                       </span>
                       <span
-                        aria-disabled="true"
+                        aria-disabled="false"
                         aria-label="Decrease Value"
-                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        class="ant-input-number-action ant-input-number-action-down"
                         role="button"
                         unselectable="on"
                       >
@@ -729,12 +729,12 @@ exports[`Designer snapshot 1`] = `
                   >
                     <input
                       aria-valuemin="0"
-                      aria-valuenow="0"
+                      aria-valuenow="20"
                       autocomplete="off"
                       class="ant-input-number-input"
                       role="spinbutton"
                       step="1"
-                      value="0"
+                      value="20"
                     />
                     <div
                       class="ant-input-number-actions"
@@ -767,9 +767,9 @@ exports[`Designer snapshot 1`] = `
                         </span>
                       </span>
                       <span
-                        aria-disabled="true"
+                        aria-disabled="false"
                         aria-label="Decrease Value"
-                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        class="ant-input-number-action ant-input-number-action-down"
                         role="button"
                         unselectable="on"
                       >
@@ -803,12 +803,12 @@ exports[`Designer snapshot 1`] = `
                   >
                     <input
                       aria-valuemin="0"
-                      aria-valuenow="0"
+                      aria-valuenow="20"
                       autocomplete="off"
                       class="ant-input-number-input"
                       role="spinbutton"
                       step="1"
-                      value="0"
+                      value="20"
                     />
                     <div
                       class="ant-input-number-actions"
@@ -841,9 +841,9 @@ exports[`Designer snapshot 1`] = `
                         </span>
                       </span>
                       <span
-                        aria-disabled="true"
+                        aria-disabled="false"
                         aria-label="Decrease Value"
-                        class="ant-input-number-action ant-input-number-action-down ant-input-number-action-down-disabled"
+                        class="ant-input-number-action ant-input-number-action-down"
                         role="button"
                         unselectable="on"
                       >
@@ -902,16 +902,16 @@ exports[`Designer snapshot 1`] = `
             style="font-family: "Roboto"; top: 30px; left: 30px; position: relative; background-image: url("data:image/png;base64,a..."); background-size: 793.700787411px 1122.5196850527px; width: 793.700787411px; height: 1122.5196850527px;"
           >
             <div
-              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; top: 0px; height: 0px; left: 0px; right: 0px;"
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; top: 0px; height: 75.590551182px; left: 0px; right: 0px;"
             />
             <div
-              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; right: 0px; width: 0px; top: 0px; bottom: 0px;"
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; right: 0px; width: 75.590551182px; top: 0px; bottom: 0px;"
             />
             <div
-              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; bottom: 0px; height: 0px; left: 0px; right: 0px;"
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; bottom: 0px; height: 75.590551182px; left: 0px; right: 0px;"
             />
             <div
-              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; left: 0px; width: 0px; top: 0px; bottom: 0px;"
+              style="position: absolute; background: rgb(250, 173, 20); opacity: 0.12; pointer-events: none; z-index: 1; left: 0px; width: 75.590551182px; top: 0px; bottom: 0px;"
             />
             <div
               class="ruler-container"

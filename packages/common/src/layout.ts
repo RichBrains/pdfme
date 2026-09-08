@@ -33,14 +33,23 @@ export const getDefaultGridSettings = (): GridSettings => ({
 /**
  * Margins default to the blank-PDF padding when available so that existing
  * templates keep their current content area. Uploaded PDFs have no padding
- * field, so they start with zero margins that the author can configure.
+ * field, so they start with a DEFAULT_MARGIN_MM margin on each side that
+ * the author can configure.
  */
+/** Default margin (mm) applied on each side when a base PDF has no padding to derive from. */
+export const DEFAULT_MARGIN_MM = 20;
+
 export const getDefaultPageMargins = (basePdf: BasePdf): PageMargins => {
   if (isBlankPdf(basePdf)) {
     const [top, right, bottom, left] = basePdf.padding;
     return { top, right, bottom, left };
   }
-  return { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    top: DEFAULT_MARGIN_MM,
+    right: DEFAULT_MARGIN_MM,
+    bottom: DEFAULT_MARGIN_MM,
+    left: DEFAULT_MARGIN_MM,
+  };
 };
 
 export const DEFAULT_REFLOW_SCOPE: ReflowScope = 'page';

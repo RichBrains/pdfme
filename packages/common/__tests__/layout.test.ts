@@ -35,8 +35,8 @@ describe('page margins', () => {
     });
   });
 
-  it('starts uploaded pdf templates without margins', () => {
-    expect(getDefaultPageMargins(customPdf)).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
+  it('starts uploaded pdf templates with the default margin on every side', () => {
+    expect(getDefaultPageMargins(customPdf)).toEqual({ top: 20, right: 20, bottom: 20, left: 20 });
   });
 
   it('prefers the persisted page layout over the derived default', () => {
