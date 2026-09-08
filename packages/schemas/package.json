@@ -102,6 +102,6 @@
     "pngjs": "^7.0.0"
   },
   "peerDependencies": {
-    "@pdfme/common": "latest"
+    "@pdfme/common": "*"
   }
 }

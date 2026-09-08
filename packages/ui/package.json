@@ -78,7 +78,7 @@
     "vite-tsconfig-paths": "^6.1.1"
   },
   "peerDependencies": {
-    "@pdfme/common": "latest",
-    "@pdfme/schemas": "latest"
+    "@pdfme/common": "*",
+    "@pdfme/schemas": "*"
   }
 }
