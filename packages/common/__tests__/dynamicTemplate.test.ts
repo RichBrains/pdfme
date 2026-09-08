@@ -94,7 +94,7 @@ describe('getDynamicTemplate', () => {
               {
                 margins: { top: padding, right: padding, bottom: padding, left: padding },
                 reflowScope: 'page',
-                elementSpacing: 15,
+                elementMargins: { top: 10, right: 0, bottom: 5, left: 0 },
                 showMargins: true,
                 grid: { visible: false, snap: false, spacing: 5, unit: 'mm' },
                 horizontalGuides: [],

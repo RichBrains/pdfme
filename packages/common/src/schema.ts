@@ -251,8 +251,10 @@ export const ReflowScope = z.enum(['page', 'flow']);
 export const PageLayoutSettings = z.object({
   margins: PageMargins,
   reflowScope: ReflowScope.optional(),
-  /** Minimum empty space (mm) maintained between element bounding boxes. */
+  /** @deprecated Use four-sided `elementMargins` instead. */
   elementSpacing: z.number().min(0).optional(),
+  /** Enforced four-sided margin (mm) around every element bounding box. */
+  elementMargins: PageMargins.optional(),
   showMargins: z.boolean(),
   grid: GridSettings,
   /** Guides running horizontally (snap on the y axis). */

@@ -111,6 +111,8 @@ import {
   DEFAULT_REFLOW_SCOPE,
   getReflowScope,
   getElementSpacing,
+  getElementMargins,
+  isSchemaPlacementFree,
   getReflowFollowers,
 } from './layout.js';
 import { createDynamicLayoutSplitRange, getDynamicLayoutSplitRange } from './splitRange.js';
@@ -185,6 +187,8 @@ export {
   DEFAULT_REFLOW_SCOPE,
   getReflowScope,
   getElementSpacing,
+  getElementMargins,
+  isSchemaPlacementFree,
   getReflowFollowers,
 };
 

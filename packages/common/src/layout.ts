@@ -53,13 +53,14 @@ export const getDefaultPageMargins = (basePdf: BasePdf): PageMargins => {
 };
 
 export const DEFAULT_REFLOW_SCOPE: ReflowScope = 'page';
-/** Existing templates retain their current behavior until spacing is configured. */
+/** Existing templates retain their current behavior until element margins are configured. */
 export const DEFAULT_ELEMENT_SPACING_MM = 0;
+export const DEFAULT_ELEMENT_MARGINS: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export const getDefaultPageLayout = (basePdf: BasePdf): PageLayoutSettings => ({
   margins: getDefaultPageMargins(basePdf),
   reflowScope: DEFAULT_REFLOW_SCOPE,
-  elementSpacing: DEFAULT_ELEMENT_SPACING_MM,
+  elementMargins: DEFAULT_ELEMENT_MARGINS,
   showMargins: true,
   grid: getDefaultGridSettings(),
   horizontalGuides: [],
@@ -126,38 +127,42 @@ export const clampToContentBounds = (
 
 export type SchemaPlacement = Pick<Schema, 'position' | 'width' | 'height'>;
 
-/**
- * Finds a non-overlapping position for a new schema within the page content
- * bounds. Existing fields are expanded by `spacing`, which makes that setting
- * behave as a margin around each element's bounding box.
- */
+/** Returns normalized four-sided margins, reading the retired scalar setting for old templates. */
+export const getElementMargins = (layout: PageLayoutSettings): PageMargins => {
+  if (layout.elementMargins) return layout.elementMargins;
+  const spacing = Math.max(0, layout.elementSpacing ?? DEFAULT_ELEMENT_SPACING_MM);
+  return { top: spacing, right: spacing, bottom: spacing, left: spacing };
+};
+
+export const isSchemaPlacementFree = (arg: {
+  schema: SchemaPlacement;
+  schemas: SchemaPlacement[];
+  bounds: ContentBounds;
+  margins: PageMargins;
+}): boolean => {
+  const { schema, schemas, bounds, margins } = arg;
+  if (isOutsideContentBounds(schema, bounds)) return false;
+  return schemas.every((existing) =>
+    schema.position.x + schema.width + margins.right <= existing.position.x - margins.left ||
+    schema.position.x - margins.left >= existing.position.x + existing.width + margins.right ||
+    schema.position.y + schema.height + margins.bottom <= existing.position.y - margins.top ||
+    schema.position.y - margins.top >= existing.position.y + existing.height + margins.bottom,
+  );
+};
+
+/** Finds the first non-overlapping position for a new schema within page content bounds. */
 export const findFreeSchemaPosition = (arg: {
   schema: SchemaPlacement;
   schemas: SchemaPlacement[];
   bounds: ContentBounds;
-  spacing?: number;
+  margins?: PageMargins;
   preferredPosition?: { x: number; y: number };
 }): { x: number; y: number } | undefined => {
   const { schema, schemas, bounds, preferredPosition } = arg;
-  const spacing = Math.max(0, arg.spacing ?? DEFAULT_ELEMENT_SPACING_MM);
+  const margins = arg.margins ?? DEFAULT_ELEMENT_MARGINS;
   if (schema.width > bounds.width || schema.height > bounds.height) return undefined;
-
-  const fits = (position: { x: number; y: number }): boolean => {
-    const candidate = { ...schema, position };
-    if (isOutsideContentBounds(candidate, bounds)) return false;
-    return schemas.every((existing) => {
-      const existingLeft = existing.position.x - spacing;
-      const existingTop = existing.position.y - spacing;
-      const existingRight = existing.position.x + existing.width + spacing;
-      const existingBottom = existing.position.y + existing.height + spacing;
-      return (
-        candidate.position.x + candidate.width <= existingLeft ||
-        candidate.position.x >= existingRight ||
-        candidate.position.y + candidate.height <= existingTop ||
-        candidate.position.y >= existingBottom
-      );
-    });
-  };
+  const fits = (position: { x: number; y: number }) =>
+    isSchemaPlacementFree({ schema: { ...schema, position }, schemas, bounds, margins });
 
   if (preferredPosition) {
     const preferred = clampToContentBounds({ ...schema, position: preferredPosition }, bounds);
@@ -167,26 +172,17 @@ export const findFreeSchemaPosition = (arg: {
   const xCandidates = new Set<number>([bounds.left, bounds.right - schema.width]);
   const yCandidates = new Set<number>([bounds.top, bounds.bottom - schema.height]);
   schemas.forEach((existing) => {
-    xCandidates.add(existing.position.x - spacing - schema.width);
-    xCandidates.add(existing.position.x + existing.width + spacing);
-    yCandidates.add(existing.position.y - spacing - schema.height);
-    yCandidates.add(existing.position.y + existing.height + spacing);
+    xCandidates.add(existing.position.x - margins.left - margins.right - schema.width);
+    xCandidates.add(existing.position.x + existing.width + margins.right + margins.left);
+    yCandidates.add(existing.position.y - margins.top - margins.bottom - schema.height);
+    yCandidates.add(existing.position.y + existing.height + margins.bottom + margins.top);
   });
 
-  const xs = [...xCandidates]
-    .filter((x) => x >= bounds.left && x + schema.width <= bounds.right)
-    .sort((a, b) => a - b);
-  const ys = [...yCandidates]
-    .filter((y) => y >= bounds.top && y + schema.height <= bounds.bottom)
-    .sort((a, b) => a - b);
-
-  for (const y of ys) {
-    for (const x of xs) {
-      const position = { x, y };
-      if (fits(position)) return position;
+  for (const y of [...yCandidates].filter((v) => v >= bounds.top && v + schema.height <= bounds.bottom).sort((a, b) => a - b)) {
+    for (const x of [...xCandidates].filter((v) => v >= bounds.left && v + schema.width <= bounds.right).sort((a, b) => a - b)) {
+      if (fits({ x, y })) return { x, y };
     }
   }
-
   return undefined;
 };
 

@@ -21,7 +21,7 @@ import {
   getPageLayout,
   getContentBounds,
   findFreeSchemaPosition,
-  getElementSpacing,
+  getElementMargins,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
@@ -416,7 +416,7 @@ const TemplateEditor = ({
       schema: s,
       schemas: schemasList[pageCursor],
       bounds: contentBounds,
-      spacing: getElementSpacing(pageLayout),
+      margins: getElementMargins(pageLayout),
       preferredPosition: defaultSchema.position,
     });
     // The current page is full. Do not create an overlapping field.

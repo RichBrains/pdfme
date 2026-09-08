@@ -22,7 +22,8 @@ import {
   isOutsideContentBounds,
   getTemplateContentBounds,
   getReflowScope,
-  getElementSpacing,
+  getElementMargins,
+  isSchemaPlacementFree,
   replacePlaceholders,
   Font,
 } from '@pdfme/common';
@@ -238,6 +239,21 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   }, [renderScale]);
 
   const onDrag = ({ target, top, left }: OnDrag) => {
+    const schema = schemasList[pageCursor]?.find((candidate) => candidate.id === target.id);
+    if (
+      schema &&
+      !isSchemaPlacementFree({
+        schema: {
+          position: { x: left / ZOOM, y: top / ZOOM },
+          width: schema.width,
+          height: schema.height,
+        },
+        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== schema.id),
+        bounds: contentBounds,
+        margins: getElementMargins(pageLayout),
+      })
+    )
+      return;
     target.style.top = `${top}px`;
     target.style.left = `${left}px`;
     updateSnapFeedback({
@@ -357,6 +373,20 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
 
     const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
     const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - clampedHeight : 0);
+    if (
+      targetSchema &&
+      !isSchemaPlacementFree({
+        schema: {
+          position: { x: left / ZOOM, y: top / ZOOM },
+          width: width / ZOOM,
+          height: clampedHeight / ZOOM,
+        },
+        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== targetSchema.id),
+        bounds: contentBounds,
+        margins: getElementMargins(pageLayout),
+      })
+    )
+      return;
     Object.assign(style, {
       width: `${width}px`,
       height: `${clampedHeight}px`,
@@ -460,7 +490,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           width: typeof patch.width === 'number' ? patch.width : undefined,
           height: minimumHeight,
           scope: getReflowScope(pageLayout),
-          elementSpacing: getElementSpacing(pageLayout),
+          elementSpacing:
+            getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
           maxBottom: contentBounds.bottom,
         }),
       ];

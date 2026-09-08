@@ -11,7 +11,7 @@ import {
   Size,
 } from './types.js';
 import { cloneDeep, isBlankPdf } from './helper.js';
-import { getElementSpacing, getPageLayout, getPageMargins, getReflowScope } from './layout.js';
+import { getElementMargins, getPageLayout, getPageMargins, getReflowScope } from './layout.js';
 import { replacePlaceholders } from './expression.js';
 
 /** Floating point tolerance for comparisons */
@@ -426,7 +426,7 @@ export const getDynamicTemplate = async (
       paddingTop,
       allowPageBreak,
       getReflowScope(pageLayout),
-      getElementSpacing(pageLayout),
+      getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
     );
     resultPages.push(...processedPages);
   }

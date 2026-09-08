@@ -150,10 +150,10 @@ describe('free schema placement', () => {
         schema,
         schemas: [{ position: { x: 10, y: 10 }, width: 20, height: 20 }],
         bounds,
-        spacing: 5,
+        margins: { top: 5, right: 5, bottom: 5, left: 5 },
         preferredPosition: { x: 10, y: 10 },
       }),
-    ).toEqual({ x: 35, y: 10 });
+    ).toEqual({ x: 40, y: 10 });
   });
 
   it('returns no position when the content area is full', () => {
