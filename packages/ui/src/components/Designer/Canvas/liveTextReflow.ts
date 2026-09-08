@@ -16,6 +16,7 @@ export const getLiveTextReflowChanges = ({
   width,
   height,
   scope = 'flow',
+  elementSpacing = 0,
   maxBottom,
 }: {
   schemas?: SchemaForUI[];
@@ -23,6 +24,8 @@ export const getLiveTextReflowChanges = ({
   width?: number;
   height?: number;
   scope?: ReflowScope;
+  /** Minimum empty space (mm) maintained below the edited field. */
+  elementSpacing?: number;
   /** Lower bound (mm) followers must not be pushed past, e.g. the content area. */
   maxBottom?: number;
 }): SchemaChange[] => {
@@ -38,8 +41,9 @@ export const getLiveTextReflowChanges = ({
   if (delta === 0 || !schemas) return changes;
 
   const active = schemas.find((candidate) => candidate.id === schema.id) ?? schema;
+  const minimumFollowerY = active.position.y + nextHeight + Math.max(0, elementSpacing);
   getReflowFollowers({ schema: active, schemas, scope }).forEach((candidate) => {
-    const nextY = candidate.position.y + delta;
+    const nextY = Math.max(candidate.position.y + delta, minimumFollowerY);
     const clampedY =
       maxBottom === undefined ? nextY : Math.min(nextY, Math.max(0, maxBottom - candidate.height));
     if (clampedY !== candidate.position.y)

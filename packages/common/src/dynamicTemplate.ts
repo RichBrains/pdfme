@@ -11,7 +11,7 @@ import {
   Size,
 } from './types.js';
 import { cloneDeep, isBlankPdf } from './helper.js';
-import { getPageLayout, getPageMargins, getReflowScope } from './layout.js';
+import { getElementSpacing, getPageLayout, getPageMargins, getReflowScope } from './layout.js';
 import { replacePlaceholders } from './expression.js';
 
 /** Floating point tolerance for comparisons */
@@ -300,6 +300,7 @@ function processDynamicPage(
   paddingTop: number,
   allowPageBreak: boolean,
   scope: ReflowScope,
+  elementSpacing: number,
 ): Schema[][] {
   const pages: Schema[][] = [];
   // With the `page` scope a single running offset shifts everything below the
@@ -310,7 +311,8 @@ function processDynamicPage(
     scope === 'page' ? '' : ((schema as { layoutFlow?: string }).layoutFlow ?? '');
   const offsetFor = (key: string) => (key === '' && scope === 'flow' ? 0 : (offsets.get(key) ?? 0));
 
-  for (const item of items) {
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
     const flowKey = flowKeyOf(item.schema);
     const currentGlobalStartY = item.baseY + offsetFor(flowKey);
 
@@ -323,10 +325,18 @@ function processDynamicPage(
       pages,
     );
 
-    // Update offset: difference between actual and original end position
+    // Preserve the source layout's gaps when they are already wider than the
+    // configured minimum, but increase the running offset when the next field
+    // would otherwise be too close to this field's expanded bounding box.
     const originalGlobalEndY = item.baseY + item.height;
     if (flowKey !== '' || scope === 'page') {
-      offsets.set(flowKey, actualGlobalEndY - originalGlobalEndY);
+      const nextInFlow = items
+        .slice(index + 1)
+        .find((candidate) => flowKeyOf(candidate.schema) === flowKey);
+      const minimumOffset = nextInFlow
+        ? actualGlobalEndY + elementSpacing - nextInFlow.baseY
+        : Number.NEGATIVE_INFINITY;
+      offsets.set(flowKey, Math.max(actualGlobalEndY - originalGlobalEndY, minimumOffset));
     }
   }
 
@@ -408,13 +418,15 @@ export const getDynamicTemplate = async (
     }
 
     // Process all pages independently (no cross-page offset propagation)
+    const pageLayout = getPageLayout(template, pageIndex);
     const processedPages = processDynamicPage(
       items,
       orderMap,
       contentHeight,
       paddingTop,
       allowPageBreak,
-      getReflowScope(getPageLayout(template, pageIndex)),
+      getReflowScope(pageLayout),
+      getElementSpacing(pageLayout),
     );
     resultPages.push(...processedPages);
   }

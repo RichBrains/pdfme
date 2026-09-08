@@ -320,10 +320,7 @@ describe('text prop panel', () => {
       basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
     });
 
-    expect(getOverflowOptionValues(schema)).toEqual([
-      TEXT_OVERFLOW_VISIBLE,
-      TEXT_OVERFLOW_EXPAND,
-    ]);
+    expect(getOverflowOptionValues(schema)).toEqual([TEXT_OVERFLOW_VISIBLE, TEXT_OVERFLOW_EXPAND]);
   });
 
   it('offers overflow expand for custom basePdf', () => {
@@ -332,10 +329,7 @@ describe('text prop panel', () => {
       basePdf: 'data:application/pdf;base64,AA==' as BasePdf,
     });
 
-    expect(getOverflowOptionValues(schema)).toEqual([
-      TEXT_OVERFLOW_VISIBLE,
-      TEXT_OVERFLOW_EXPAND,
-    ]);
+    expect(getOverflowOptionValues(schema)).toEqual([TEXT_OVERFLOW_VISIBLE, TEXT_OVERFLOW_EXPAND]);
   });
 
   it('keeps overflow expand available for text-derived schemas that do not use text expand', () => {
@@ -344,10 +338,7 @@ describe('text prop panel', () => {
       activeSchema: { type: 'select' },
     });
 
-    expect(getOverflowOptionValues(schema)).toEqual([
-      TEXT_OVERFLOW_VISIBLE,
-      TEXT_OVERFLOW_EXPAND,
-    ]);
+    expect(getOverflowOptionValues(schema)).toEqual([TEXT_OVERFLOW_VISIBLE, TEXT_OVERFLOW_EXPAND]);
   });
 
   it('disables dynamic font size controls when custom basePdf uses overflow expand', () => {
@@ -460,9 +451,10 @@ describe('text dynamic layout', () => {
         isSplit: false,
         chunkHeight: result.heights[0],
       }),
-    ).toEqual({
+    ).toMatchObject({
       dynamicFontSize: undefined,
       minHeight: 5,
+      contentMinHeight: expect.any(Number),
       __splitRange: { unit: 'textLine', start: 0, end: 1 },
       __isSplit: false,
     });
@@ -490,9 +482,10 @@ describe('text dynamic layout', () => {
         isSplit: true,
         chunkHeight: result.heights[1] + result.heights[2],
       }),
-    ).toEqual({
+    ).toMatchObject({
       dynamicFontSize: undefined,
       minHeight: 5,
+      contentMinHeight: expect.any(Number),
       __splitRange: { unit: 'textLine', start: 1, end: 3 },
       __isSplit: true,
     });
@@ -985,7 +978,7 @@ describe('calculateDynamicFontSize with Default font', () => {
     textSchema.dynamicFontSize = { min: 10, max: 30, fit: 'vertical' };
     const value = 'test with a length string\n and a new line';
     const startingFontSize = 18;
-    const result = calculateDynamicFontSize({textSchema, fontKitFont, value, startingFontSize});
+    const result = calculateDynamicFontSize({ textSchema, fontKitFont, value, startingFontSize });
 
     expect(result).toBe(19.25);
   });
@@ -995,7 +988,7 @@ describe('calculateDynamicFontSize with Default font', () => {
     textSchema.dynamicFontSize = { min: 10, max: 30, fit: 'horizontal' };
     const value = 'test with a length string\n and a new line';
     const startingFontSize = 36;
-    const result = calculateDynamicFontSize({textSchema, fontKitFont, value, startingFontSize});
+    const result = calculateDynamicFontSize({ textSchema, fontKitFont, value, startingFontSize });
 
     expect(result).toBe(11.25);
   });
@@ -1015,7 +1008,6 @@ describe('calculateDynamicFontSize with Custom font', () => {
   beforeAll(async () => {
     fontKitFont = await getFontKitFont('SauceHanSansJP', getSampleFont(), new Map());
   });
-
 
   it('should return smaller font size when dynamicFontSizeSetting is provided with horizontal fit', async () => {
     const textSchema = getTextSchema();
@@ -1066,7 +1058,7 @@ describe('calculateDynamicFontSize with Custom font', () => {
 describe('getFontDescentInPt test', () => {
   test('it gets a descent size relative to the font size', () => {
     expect(getFontDescentInPt({ descent: -400, unitsPerEm: 1000 } as FontKitFont, 12)).toBe(
-      -4.800000000000001
+      -4.800000000000001,
     );
     expect(getFontDescentInPt({ descent: 54, unitsPerEm: 1000 } as FontKitFont, 20)).toBe(1.08);
     expect(getFontDescentInPt({ descent: -512, unitsPerEm: 2048 } as FontKitFont, 54)).toBe(-13.5);
@@ -1211,7 +1203,6 @@ describe('filterEndJP', () => {
   });
 });
 
-
 describe('paragraph indentation', () => {
   it('defaults to no indentation', () => {
     const indent = getParagraphIndent(getTextSchema());
@@ -1221,7 +1212,11 @@ describe('paragraph indentation', () => {
   });
 
   it('offsets only the first line for a first-line indent', () => {
-    const indent = getParagraphIndent({ leftIndent: 5, indentMode: 'firstLine', specialIndent: 10 });
+    const indent = getParagraphIndent({
+      leftIndent: 5,
+      indentMode: 'firstLine',
+      specialIndent: 10,
+    });
 
     expect(getLineStartIndentMm(indent, true)).toBe(15);
     expect(getLineStartIndentMm(indent, false)).toBe(5);
@@ -1235,7 +1230,11 @@ describe('paragraph indentation', () => {
   });
 
   it('supports a negative first-line offset (outdent)', () => {
-    const indent = getParagraphIndent({ leftIndent: 10, indentMode: 'firstLine', specialIndent: -5 });
+    const indent = getParagraphIndent({
+      leftIndent: 10,
+      indentMode: 'firstLine',
+      specialIndent: -5,
+    });
 
     expect(getLineStartIndentMm(indent, true)).toBe(5);
     expect(getLineStartIndentMm(indent, false)).toBe(10);
@@ -1255,11 +1254,7 @@ describe('paragraph indentation', () => {
   });
 
   it('marks paragraph starts from the line splitter output', () => {
-    expect(getParagraphLineStarts(['first', 'wrapped\n', 'second\n'])).toEqual([
-      true,
-      false,
-      true,
-    ]);
+    expect(getParagraphLineStarts(['first', 'wrapped\n', 'second\n'])).toEqual([true, false, true]);
   });
 
   it('wraps the first line earlier when a first-line indent is set', async () => {
@@ -1445,6 +1440,32 @@ describe('text sizing modes', () => {
     expect(result.heights[0]).toBeGreaterThanOrEqual(5);
   });
 
+  it('persists the current content minimum height separately from the authored minimum', async () => {
+    const schema = {
+      ...getTextSchema(),
+      height: 5,
+      minHeight: 5,
+      width: 20,
+      overflow: 'expand' as const,
+    };
+    const result = await getDynamicLayoutForText('long text '.repeat(20), {
+      schema,
+      basePdf: { width: 100, height: 100, padding: [0, 0, 0, 0] },
+      options: { font: getSampleFont() },
+      _cache: new Map<string | number, unknown>(),
+    });
+    const patch = result.patchSplitSchema?.({
+      schema,
+      start: 0,
+      end: 1,
+      isSplit: false,
+      chunkHeight: result.heights[0],
+    });
+
+    expect(patch?.minHeight).toBe(5);
+    expect(patch?.contentMinHeight).toBeGreaterThan(5);
+  });
+
   it('passes same-page siblings into the boundary context', async () => {
     const schema = {
       ...getTextSchema(),
@@ -1475,8 +1496,9 @@ describe('text sizing modes', () => {
       ],
     });
 
-    expect(result.patchSplitSchema?.({ schema, start: 0, end: 1, isSplit: false, chunkHeight: 10 }))
-      .toMatchObject({ width: 30 });
+    expect(
+      result.patchSplitSchema?.({ schema, start: 0, end: 1, isSplit: false, chunkHeight: 10 }),
+    ).toMatchObject({ width: 30 });
   });
 
   it('does not constrain manual or overlapping fields', () => {

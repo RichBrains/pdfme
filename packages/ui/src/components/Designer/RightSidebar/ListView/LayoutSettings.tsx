@@ -77,6 +77,15 @@ const LayoutSettings = ({
             }))
           }
         />
+        <span>{i18n('layoutElementSpacing')}</span>
+        <InputNumber
+          size="small"
+          min={0}
+          value={layout.elementSpacing ?? 0}
+          onChange={(elementSpacing) =>
+            update((current) => ({ ...current, elementSpacing: elementSpacing ?? 0 }))
+          }
+        />
         <span>{i18n('layoutGridUnit')}</span>
         <Select
           size="small"

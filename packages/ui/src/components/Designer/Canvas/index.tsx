@@ -22,6 +22,7 @@ import {
   isOutsideContentBounds,
   getTemplateContentBounds,
   getReflowScope,
+  getElementSpacing,
   replacePlaceholders,
   Font,
 } from '@pdfme/common';
@@ -52,24 +53,19 @@ const fmt = (prop: string) => round(fmt4Num(prop) / ZOOM, 2);
 const isTopLeftResize = (d: string) => d === '-1,-1' || d === '-1,0' || d === '0,-1';
 const normalizeRotate = (angle: number) => ((angle % 360) + 360) % 360;
 
-/**
- * Text-only fields whose `heightMode` resolves to `auto` (or, for legacy
- * schemas without an explicit `heightMode`, whose `overflow` is `expand`)
- * grow/contract to fit content. Their `minHeight` (persisted the first time
- * content forces an expansion) is the smallest height that doesn't clip
- * content, so manual resize must not shrink below it.
- */
-const isAutoHeightTextSchema = (schema: SchemaForUI): boolean => {
-  if (schema.type !== 'text') return false;
-  const heightMode = (schema as { heightMode?: unknown }).heightMode;
-  if (heightMode === 'auto') return true;
-  if (heightMode === 'fixed') return false;
-  return (schema as { overflow?: unknown }).overflow === 'expand';
-};
+/** Text fields keep a content-derived minimum height after they are measured. */
+const isTextSchema = (schema: SchemaForUI): boolean =>
+  schema.type === 'text' || schema.type === 'multiVariableText';
 
 const getSchemaMinHeight = (schema: SchemaForUI): number | undefined => {
-  const minHeight = (schema as { minHeight?: unknown }).minHeight;
-  return typeof minHeight === 'number' ? minHeight : undefined;
+  const { minHeight, contentMinHeight } = schema as {
+    minHeight?: unknown;
+    contentMinHeight?: unknown;
+  };
+  const values = [minHeight, contentMinHeight].filter(
+    (value): value is number => typeof value === 'number',
+  );
+  return values.length > 0 ? Math.max(...values) : undefined;
 };
 
 const getSchemaWidthMode = (schema: SchemaForUI): string | undefined => {
@@ -325,6 +321,9 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     targetSchema.position.y = fmt(top);
     targetSchema.width = fmt(width);
     targetSchema.height = fmt(height);
+    if (targetSchema.type === 'text' || targetSchema.type === 'multiVariableText') {
+      queueLiveTextReflow(targetSchema, targetSchema.content ?? '');
+    }
   };
 
   const onResizeEnds = ({ targets }: { targets: (HTMLElement | SVGElement)[] }) => {
@@ -349,7 +348,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     // minimum height its content requires.
     const targetSchema = schemasList[pageCursor]?.find((schema) => schema.id === target.id);
     let clampedHeight = height;
-    if (targetSchema && isAutoHeightTextSchema(targetSchema)) {
+    if (targetSchema && isTextSchema(targetSchema)) {
       const minHeight = getSchemaMinHeight(targetSchema);
       if (typeof minHeight === 'number') {
         clampedHeight = Math.max(height, minHeight * ZOOM);
@@ -440,14 +439,28 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           isSplit: false,
           chunkHeight: measuredHeight,
         }) ?? {};
+      const minimumHeight =
+        typeof patch.contentMinHeight === 'number'
+          ? Math.max(
+              patch.contentMinHeight,
+              typeof patch.minHeight === 'number' ? patch.minHeight : 0,
+            )
+          : undefined;
       const changes = [
         { key: 'content', value, schemaId: schema.id },
+        ...(typeof patch.minHeight === 'number'
+          ? [{ key: 'minHeight', value: patch.minHeight, schemaId: schema.id }]
+          : []),
+        ...(typeof patch.contentMinHeight === 'number'
+          ? [{ key: 'contentMinHeight', value: patch.contentMinHeight, schemaId: schema.id }]
+          : []),
         ...getLiveTextReflowChanges({
           schemas: schemasList[pageCursor] || [],
           schema,
           width: typeof patch.width === 'number' ? patch.width : undefined,
-          height: measuredHeight,
+          height: minimumHeight,
           scope: getReflowScope(pageLayout),
+          elementSpacing: getElementSpacing(pageLayout),
           maxBottom: contentBounds.bottom,
         }),
       ];

@@ -33,29 +33,33 @@ export const getDynamicLayoutForText = async (
     : authoredSchema;
   const widthPatch = hasResolvedWidth ? { width: resolvedWidth } : {};
 
-  if (!isAutoHeightText(schema)) {
-    return {
-      heights: [schema.height],
-      ...(hasResolvedWidth ? { patchSplitSchema: () => ({ ...widthPatch }) } : {}),
-    };
-  }
-
+  const autoHeight = isAutoHeightText(schema);
   const { lineHeights } = await measureTextLines({
     value,
     schema,
     font: args.options.font,
     _cache: args._cache,
-    // `expand` owns the height decision, so measuring against a shrink-to-fit font size
-    // would make the field keep its original box instead of growing.
-    ignoreDynamicFontSize: true,
+    // Auto-height fields own the height decision, so measuring against a
+    // shrink-to-fit font size would keep their original box instead of growing.
+    ignoreDynamicFontSize: autoHeight,
   });
   const heights = getTextLineHeightsWithBox(lineHeights, schema);
   const measuredHeight = sumLineHeights(heights);
-  // `minHeight` is persisted the first time an auto-height field expands, so
-  // later edits can contract it without losing the original authored minimum.
+  const contentPatch = { contentMinHeight: measuredHeight };
+
+  if (!autoHeight) {
+    return {
+      heights: [schema.height],
+      patchSplitSchema: () => ({ ...widthPatch, ...contentPatch }),
+    };
+  }
+
+  // Keep the authored minimum separate from the current content-derived
+  // minimum so editing may shrink a field after content is removed while a
+  // manual resize can never make it smaller than the rendered text.
   const minHeight = schema.minHeight ?? schema.height;
   const resolvedHeight = Math.max(minHeight, measuredHeight);
-  const heightPatch = { minHeight };
+  const heightPatch = { minHeight, ...contentPatch };
 
   // Content that already fits keeps a single unit: splitting it here would
   // introduce page breaks for text that never overflowed.

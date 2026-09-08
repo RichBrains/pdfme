@@ -73,6 +73,8 @@ export type TextSchema = Schema & {
   heightMode?: TEXT_HEIGHT_MODE;
   /** Minimum auto-height in mm. Defaults to the authored height when first expanded. */
   minHeight?: number;
+  /** Current content-derived minimum height in mm for the resolved text width. */
+  contentMinHeight?: number;
   expansionBoundary?: TEXT_EXPANSION_BOUNDARY;
   /** Persisted layout ID of the field used when `expansionBoundary` is `field`. */
   boundarySchemaId?: string;

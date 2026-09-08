@@ -20,6 +20,8 @@ import {
   px2mm,
   getPageLayout,
   getContentBounds,
+  findFreeSchemaPosition,
+  getElementSpacing,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
@@ -373,10 +375,10 @@ const TemplateEditor = ({
   );
 
   const addSchema = (defaultSchema: Schema) => {
-    const [paddingTop, paddingRight, paddingBottom, paddingLeft] = isBlankPdf(template.basePdf)
-      ? template.basePdf.padding
-      : [0, 0, 0, 0];
     const pageSize = pageSizes[pageCursor];
+    if (!pageSize) return;
+    const pageLayout = getPageLayout(template, pageCursor);
+    const contentBounds = getContentBounds(pageLayout.margins, pageSize);
 
     const newSchemaName = (prefix: string) => {
       let index = schemasList.reduce((acc, page) => acc + page.length, 1);
@@ -387,8 +389,6 @@ const TemplateEditor = ({
       }
       return newName;
     };
-    const ensureMiddleValue = (min: number, value: number, max: number) =>
-      Math.min(Math.max(min, value), max);
 
     // The interactive id doubles as the persisted layout identity so that
     // relationships such as expansion boundaries survive save/reload.
@@ -398,50 +398,30 @@ const TemplateEditor = ({
       layoutId,
       ...defaultSchema,
       name: newSchemaName(i18n('field')),
-      position: {
-        x: ensureMiddleValue(
-          paddingLeft,
-          defaultSchema.position.x,
-          pageSize.width - paddingRight - defaultSchema.width,
-        ),
-        y: ensureMiddleValue(
-          paddingTop,
-          defaultSchema.position.y,
-          pageSize.height - paddingBottom - defaultSchema.height,
-        ),
-      },
+      position: { ...defaultSchema.position },
       required: defaultSchema.readOnly
         ? false
         : options.requiredByDefault || defaultSchema.required || false,
     } as SchemaForUI;
 
-    if (defaultSchema.position.y === 0) {
-      const paper = paperRefs.current[pageCursor];
-      const rectTop = paper ? paper.getBoundingClientRect().top : 0;
-      s.position.y = rectTop > 0 ? paddingTop : pageSizes[pageCursor].height / 2;
+    // A newly added fill-width text field needs its final bounds before the
+    // free-space search. The page content bounds are also the placement area,
+    // so a fill field uses the whole available row.
+    const sWithTextProps = s as unknown as { widthMode?: unknown };
+    if (s.type === 'text' && sWithTextProps.widthMode === 'fill') {
+      s.width = contentBounds.width;
     }
 
-    // A newly added text field with the default `widthMode: 'fill'` should
-    // immediately span the available width, like a word processor, rather
-    // than showing the small fallback `width` until content is edited and
-    // the dynamic-layout reflow resolves it. Mirrors the 'page'/'margin'
-    // cases of @pdfme/schemas' getAvailableTextWidth for the common,
-    // sibling-independent boundaries.
-    const sWithTextProps = s as unknown as {
-      widthMode?: unknown;
-      expansionBoundary?: unknown;
-    };
-    if (s.type === 'text' && sWithTextProps.widthMode === 'fill') {
-      const boundary = sWithTextProps.expansionBoundary;
-      const availableWidth =
-        boundary === 'page'
-          ? pageSize.width - s.position.x
-          : getContentBounds(getPageLayout(template, pageCursor).margins, pageSize).right -
-            s.position.x;
-      if (availableWidth > 0) {
-        s.width = availableWidth;
-      }
-    }
+    const position = findFreeSchemaPosition({
+      schema: s,
+      schemas: schemasList[pageCursor],
+      bounds: contentBounds,
+      spacing: getElementSpacing(pageLayout),
+      preferredPosition: defaultSchema.position,
+    });
+    // The current page is full. Do not create an overlapping field.
+    if (!position) return;
+    s.position = position;
 
     commitSchemas(schemasList[pageCursor].concat(s));
     setTimeout(() => onEdit([document.getElementById(s.id)]));

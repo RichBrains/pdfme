@@ -91,6 +91,7 @@ import { PAGE_SIZE_PRESETS, detectPaperSize, resolvePageSize } from './pageSize.
 import { getDynamicTemplate } from './dynamicTemplate.js';
 import {
   DEFAULT_GRID_SPACING_MM,
+  DEFAULT_ELEMENT_SPACING_MM,
   getDefaultGridSettings,
   getDefaultPageMargins,
   getDefaultPageLayout,
@@ -103,11 +104,13 @@ import {
   getTemplateContentBounds,
   isOutsideContentBounds,
   clampToContentBounds,
+  findFreeSchemaPosition,
   snapValueToGrid,
   getGridLinePositions,
   getGuidePositions,
   DEFAULT_REFLOW_SCOPE,
   getReflowScope,
+  getElementSpacing,
   getReflowFollowers,
 } from './layout.js';
 import { createDynamicLayoutSplitRange, getDynamicLayoutSplitRange } from './splitRange.js';
@@ -162,6 +165,7 @@ export {
   createDynamicLayoutSplitRange,
   getDynamicLayoutSplitRange,
   DEFAULT_GRID_SPACING_MM,
+  DEFAULT_ELEMENT_SPACING_MM,
   getDefaultGridSettings,
   getDefaultPageMargins,
   getDefaultPageLayout,
@@ -174,11 +178,13 @@ export {
   getTemplateContentBounds,
   isOutsideContentBounds,
   clampToContentBounds,
+  findFreeSchemaPosition,
   snapValueToGrid,
   getGridLinePositions,
   getGuidePositions,
   DEFAULT_REFLOW_SCOPE,
   getReflowScope,
+  getElementSpacing,
   getReflowFollowers,
 };
 

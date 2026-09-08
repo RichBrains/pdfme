@@ -1,5 +1,7 @@
 import {
   clampToContentBounds,
+  findFreeSchemaPosition,
+  getElementSpacing,
   getReflowFollowers,
   getReflowScope,
   getContentBounds,
@@ -16,7 +18,11 @@ import {
 import { mm2pt } from '../src/helper.js';
 import type { Template } from '../src/index.js';
 
-const blankPdf = { width: 210, height: 297, padding: [10, 20, 30, 40] as [number, number, number, number] };
+const blankPdf = {
+  width: 210,
+  height: 297,
+  padding: [10, 20, 30, 40] as [number, number, number, number],
+};
 const customPdf = 'data:application/pdf;base64,AA==';
 
 const templateWith = (basePdf: Template['basePdf'], layout?: Template['layout']): Template => ({
@@ -106,9 +112,74 @@ describe('content bounds', () => {
   });
 });
 
+describe('free schema placement', () => {
+  const bounds = getContentBounds(
+    { top: 10, right: 10, bottom: 10, left: 10 },
+    {
+      width: 100,
+      height: 100,
+    },
+  );
+  const schema = { position: { x: 10, y: 10 }, width: 20, height: 20 };
+
+  it('uses the preferred position when it is free', () => {
+    expect(
+      findFreeSchemaPosition({
+        schema,
+        schemas: [],
+        bounds,
+        preferredPosition: { x: 30, y: 40 },
+      }),
+    ).toEqual({ x: 30, y: 40 });
+  });
+
+  it('finds the first free position without overlapping a sibling', () => {
+    expect(
+      findFreeSchemaPosition({
+        schema,
+        schemas: [{ position: { x: 10, y: 10 }, width: 20, height: 20 }],
+        bounds,
+        preferredPosition: { x: 10, y: 10 },
+      }),
+    ).toEqual({ x: 30, y: 10 });
+  });
+
+  it('treats configured spacing as a margin around existing fields', () => {
+    expect(
+      findFreeSchemaPosition({
+        schema,
+        schemas: [{ position: { x: 10, y: 10 }, width: 20, height: 20 }],
+        bounds,
+        spacing: 5,
+        preferredPosition: { x: 10, y: 10 },
+      }),
+    ).toEqual({ x: 35, y: 10 });
+  });
+
+  it('returns no position when the content area is full', () => {
+    expect(
+      findFreeSchemaPosition({
+        schema: { position: { x: 10, y: 10 }, width: 80, height: 80 },
+        schemas: [],
+        bounds: { left: 10, top: 10, right: 90, bottom: 90, width: 80, height: 80 },
+        spacing: 5,
+      }),
+    ).toEqual({ x: 10, y: 10 });
+    expect(
+      findFreeSchemaPosition({
+        schema,
+        schemas: [{ position: { x: 10, y: 10 }, width: 80, height: 80 }],
+        bounds,
+      }),
+    ).toBeUndefined();
+  });
+});
+
 describe('grid', () => {
   it('converts pt spacing to mm', () => {
-    expect(getGridSpacingMm({ visible: true, snap: true, spacing: mm2pt(5), unit: 'pt' })).toBeCloseTo(5);
+    expect(
+      getGridSpacingMm({ visible: true, snap: true, spacing: mm2pt(5), unit: 'pt' }),
+    ).toBeCloseTo(5);
   });
 
   it('snaps values to the nearest grid line', () => {
@@ -136,6 +207,11 @@ describe('reflow scope', () => {
     expect(getReflowScope({ ...getDefaultPageLayout(customPdf), reflowScope: undefined })).toBe(
       'page',
     );
+  });
+
+  it('defaults element spacing to zero for backward compatibility', () => {
+    expect(getElementSpacing(getDefaultPageLayout(customPdf))).toBe(0);
+    expect(getElementSpacing({ ...getDefaultPageLayout(customPdf), elementSpacing: 4 })).toBe(4);
   });
 
   it('moves every lower field in page scope', () => {
