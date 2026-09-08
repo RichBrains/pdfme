@@ -52,6 +52,31 @@ const fmt = (prop: string) => round(fmt4Num(prop) / ZOOM, 2);
 const isTopLeftResize = (d: string) => d === '-1,-1' || d === '-1,0' || d === '0,-1';
 const normalizeRotate = (angle: number) => ((angle % 360) + 360) % 360;
 
+/**
+ * Text-only fields whose `heightMode` resolves to `auto` (or, for legacy
+ * schemas without an explicit `heightMode`, whose `overflow` is `expand`)
+ * grow/contract to fit content. Their `minHeight` (persisted the first time
+ * content forces an expansion) is the smallest height that doesn't clip
+ * content, so manual resize must not shrink below it.
+ */
+const isAutoHeightTextSchema = (schema: SchemaForUI): boolean => {
+  if (schema.type !== 'text') return false;
+  const heightMode = (schema as { heightMode?: unknown }).heightMode;
+  if (heightMode === 'auto') return true;
+  if (heightMode === 'fixed') return false;
+  return (schema as { overflow?: unknown }).overflow === 'expand';
+};
+
+const getSchemaMinHeight = (schema: SchemaForUI): number | undefined => {
+  const minHeight = (schema as { minHeight?: unknown }).minHeight;
+  return typeof minHeight === 'number' ? minHeight : undefined;
+};
+
+const getSchemaWidthMode = (schema: SchemaForUI): string | undefined => {
+  const widthMode = (schema as { widthMode?: unknown }).widthMode;
+  return typeof widthMode === 'string' ? widthMode : undefined;
+};
+
 const DeleteButton = ({
   activeElements: aes,
   controlScale,
@@ -166,6 +191,9 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const reflowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTextChangesRef = useRef<SchemaChange[]>([]);
   const pendingTextReflowRef = useRef<{ schema: SchemaForUI; value: string } | null>(null);
+  // Last live-resize direction, read at resize-end to decide whether the
+  // user manually changed a text field's width (vs. only its height).
+  const lastResizeDirectionRef = useRef<number[] | null>(null);
 
   const prevSchemas = usePrevious(schemasList[pageCursor]);
 
@@ -266,14 +294,30 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     setSnapFeedback(null);
     const { id, style } = target;
     const { width, height, top, left } = style;
-    changeSchemas([
+    const targetSchema = schemasList[pageCursor].find((schema) => schema.id === id);
+
+    const changes: SchemaChange[] = [
       { key: 'position.x', value: fmt(left), schemaId: id },
       { key: 'position.y', value: fmt(top), schemaId: id },
       { key: 'width', value: fmt(width), schemaId: id },
       { key: 'height', value: fmt(height), schemaId: id },
-    ]);
+    ];
 
-    const targetSchema = schemasList[pageCursor].find((schema) => schema.id === id);
+    // A horizontal resize handle was dragged: the field's width is no
+    // longer driven by its widthMode, so lock it to 'fixed' like a manual
+    // edit of the width field in the property panel would.
+    const resizedHorizontally = (lastResizeDirectionRef.current?.[0] ?? 0) !== 0;
+    if (
+      targetSchema &&
+      resizedHorizontally &&
+      targetSchema.type === 'text' &&
+      getSchemaWidthMode(targetSchema) !== 'fixed'
+    ) {
+      changes.push({ key: 'widthMode', value: 'fixed', schemaId: id });
+    }
+    lastResizeDirectionRef.current = null;
+
+    changeSchemas(changes);
 
     if (!targetSchema) return;
 
@@ -296,18 +340,31 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
 
   const onResize = ({ target, width, height, direction }: OnResize) => {
     if (!target) return;
+    lastResizeDirectionRef.current = direction;
     const style = target.style;
     const oldWidth = fmt4Num(style.width);
     const oldHeight = fmt4Num(style.height);
+
+    // Don't let a manual drag shrink an auto-height text field below the
+    // minimum height its content requires.
+    const targetSchema = schemasList[pageCursor]?.find((schema) => schema.id === target.id);
+    let clampedHeight = height;
+    if (targetSchema && isAutoHeightTextSchema(targetSchema)) {
+      const minHeight = getSchemaMinHeight(targetSchema);
+      if (typeof minHeight === 'number') {
+        clampedHeight = Math.max(height, minHeight * ZOOM);
+      }
+    }
+
     const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
-    const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - height : 0);
+    const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - clampedHeight : 0);
     Object.assign(style, {
       width: `${width}px`,
-      height: `${height}px`,
+      height: `${clampedHeight}px`,
       left: `${left}px`,
       top: `${top}px`,
     });
-    updateSnapFeedback({ top, left, width, height });
+    updateSnapFeedback({ top, left, width, height: clampedHeight });
   };
 
   const pageLayout = getPageLayout(template, pageCursor);
