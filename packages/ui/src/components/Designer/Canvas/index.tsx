@@ -24,6 +24,7 @@ import {
   getReflowScope,
   getElementMargins,
   isSchemaPlacementFree,
+  findFreeSchemaPosition,
   replacePlaceholders,
   Font,
 } from '@pdfme/common';
@@ -253,26 +254,14 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     setSnapFeedback(null);
     const { top, left } = target.style;
     const schema = schemasList[pageCursor]?.find((candidate) => candidate.id === target.id);
-    if (
-      schema &&
-      !isSchemaPlacementFree({
-        schema: {
-          position: { x: fmt(left), y: fmt(top) },
-          width: schema.width,
-          height: schema.height,
-        },
-        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== schema.id),
-        bounds: contentBounds,
-        margins: getElementMargins(pageLayout),
-      })
-    ) {
-      target.style.top = `${schema.position.y * ZOOM}px`;
-      target.style.left = `${schema.position.x * ZOOM}px`;
-      return;
+    const position = resolveDropPosition(schema, { x: fmt(left), y: fmt(top) });
+    if (schema && position) {
+      target.style.top = `${position.y * ZOOM}px`;
+      target.style.left = `${position.x * ZOOM}px`;
     }
     changeSchemas([
-      { key: 'position.y', value: fmt(top), schemaId: target.id },
-      { key: 'position.x', value: fmt(left), schemaId: target.id },
+      { key: 'position.y', value: position ? position.y : fmt(top), schemaId: target.id },
+      { key: 'position.x', value: position ? position.x : fmt(left), schemaId: target.id },
     ]);
   };
 
@@ -310,10 +299,18 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     const { id, style } = target;
     const { width, height, top, left } = style;
     const targetSchema = schemasList[pageCursor].find((schema) => schema.id === id);
+    // The resized box may now break the element margins, so nudge it to the
+    // closest position that still honours them before committing.
+    const resized = targetSchema
+      ? { ...targetSchema, width: fmt(width), height: fmt(height) }
+      : undefined;
+    const position =
+      resolveDropPosition(resized, { x: fmt(left), y: fmt(top) }) ??
+      ({ x: fmt(left), y: fmt(top) } as { x: number; y: number });
 
     const changes: SchemaChange[] = [
-      { key: 'position.x', value: fmt(left), schemaId: id },
-      { key: 'position.y', value: fmt(top), schemaId: id },
+      { key: 'position.x', value: position.x, schemaId: id },
+      { key: 'position.y', value: position.y, schemaId: id },
       { key: 'width', value: fmt(width), schemaId: id },
       { key: 'height', value: fmt(height), schemaId: id },
     ];
@@ -336,8 +333,10 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
 
     if (!targetSchema) return;
 
-    targetSchema.position.x = fmt(left);
-    targetSchema.position.y = fmt(top);
+    target.style.left = `${position.x * ZOOM}px`;
+    target.style.top = `${position.y * ZOOM}px`;
+    targetSchema.position.x = position.x;
+    targetSchema.position.y = position.y;
     targetSchema.width = fmt(width);
     targetSchema.height = fmt(height);
     if (targetSchema.type === 'text' || targetSchema.type === 'multiVariableText') {
@@ -376,20 +375,6 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
 
     const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
     const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - clampedHeight : 0);
-    if (
-      targetSchema &&
-      !isSchemaPlacementFree({
-        schema: {
-          position: { x: left / ZOOM, y: top / ZOOM },
-          width: width / ZOOM,
-          height: clampedHeight / ZOOM,
-        },
-        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== targetSchema.id),
-        bounds: contentBounds,
-        margins: getElementMargins(pageLayout),
-      })
-    )
-      return;
     Object.assign(style, {
       width: `${width}px`,
       height: `${clampedHeight}px`,
@@ -407,6 +392,63 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     () => getTemplateContentBounds(template, pageCursor, currentPageSize),
     [template, pageCursor, currentPageSize],
   );
+  // Elements may legitimately sit outside the content area (pdfme only warns
+  // about it), so element margins are enforced against siblings over the whole
+  // page. Gestures stay unrestricted and the drop point is corrected instead.
+  const pageBounds = useMemo(
+    () => ({
+      left: 0,
+      top: 0,
+      right: currentPageSize.width,
+      bottom: currentPageSize.height,
+      width: currentPageSize.width,
+      height: currentPageSize.height,
+    }),
+    [currentPageSize],
+  );
+
+  /**
+   * Returns the position a dropped element should keep, or `undefined` when the
+   * drop point itself already respects the configured element margins.
+   */
+  const resolveDropPosition = (
+    schema: SchemaForUI | undefined,
+    position: { x: number; y: number },
+  ): { x: number; y: number } | undefined => {
+    if (!schema) return undefined;
+    const siblings = (schemasList[pageCursor] || []).filter(
+      (candidate) => candidate.id !== schema.id,
+    );
+    const placement = { position, width: schema.width, height: schema.height };
+    const margins = getElementMargins(pageLayout);
+    if (
+      isSchemaPlacementFree({ schema: placement, schemas: siblings, bounds: pageBounds, margins })
+    )
+      return undefined;
+    return (
+      findFreeSchemaPosition({
+        schema: placement,
+        schemas: siblings,
+        bounds: pageBounds,
+        margins,
+        preferredPosition: position,
+      }) ?? { x: schema.position.x, y: schema.position.y }
+    );
+  };
+
+  // Rendered on the element itself, so the bands stay attached while dragging.
+  const elementMarginShadow = useMemo(() => {
+    if (!pageLayout.showMargins) return undefined;
+    const margins = getElementMargins(pageLayout);
+    const layers = [
+      margins.top > 0 ? `0 -${margins.top * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
+      margins.right > 0 ? `${margins.right * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
+      margins.bottom > 0 ? `0 ${margins.bottom * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
+      margins.left > 0 ? `-${margins.left * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
+    ].filter(Boolean);
+    return layers.length ? layers.join(', ') : undefined;
+  }, [pageLayout, token.colorWarningBg]);
+
   const snapTargets = useMemo(
     () =>
       getLayoutSnapTargets({
@@ -493,8 +535,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           width: typeof patch.width === 'number' ? patch.width : undefined,
           height: minimumHeight,
           scope: getReflowScope(pageLayout),
-          elementSpacing:
-            getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
+          elementSpacing: getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
           maxBottom: contentBounds.bottom,
         }),
       ];
@@ -690,11 +731,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                 grid={getPageLayout(template, index).grid}
                 pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }}
               />
-              <Padding
-                template={template}
-                pageIndex={index}
-                schemas={schemasList[index] ?? []}
-              />
+              <Padding template={template} pageIndex={index} />
               <StaticSchema
                 template={{ schemas: schemasList, basePdf }}
                 input={Object.fromEntries(
@@ -832,6 +869,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                     ? 'transparent'
                     : token.colorPrimary
               }`}
+              marginShadow={elementMarginShadow}
               scale={renderScale}
             />
           );

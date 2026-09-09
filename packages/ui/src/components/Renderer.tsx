@@ -23,6 +23,8 @@ type RendererProps = Omit<
   schema: SchemaForUI;
   value: string;
   outline: string;
+  /** Box-shadow layers that visualize the enforced element margins. */
+  marginShadow?: string;
   onChangeHoveringSchemaId?: (id: string | null) => void;
   onChangeActiveSchemaId?: (id: string | null) => void;
   scale: number;
@@ -67,6 +69,7 @@ const useRenderKey = (arg: ReRenderCheckProps) => {
 const Wrapper = ({
   children,
   outline,
+  marginShadow,
   onChangeHoveringSchemaId,
   onChangeActiveSchemaId,
   schema,
@@ -106,9 +109,15 @@ const Wrapper = ({
         transform: `rotate(${schema.rotate ?? 0}deg)`,
         opacity: schema.opacity ?? 1,
         outline,
-        boxShadow: isActive
-          ? `0 0 0 2px ${token.colorPrimary}, 0 0 0 4px ${token.colorPrimaryBg}`
-          : undefined,
+        // Margin bands are drawn as box shadows so they belong to the element
+        // itself: they follow it while dragging and never intercept pointers.
+        boxShadow:
+          [
+            isActive ? `0 0 0 2px ${token.colorPrimary}, 0 0 0 4px ${token.colorPrimaryBg}` : '',
+            marginShadow ?? '',
+          ]
+            .filter(Boolean)
+            .join(', ') || undefined,
         zIndex: isActive ? 1 : undefined,
       }}
     >

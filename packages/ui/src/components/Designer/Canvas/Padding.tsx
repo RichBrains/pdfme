@@ -1,6 +1,6 @@
 import React from 'react';
 import type * as CSS from 'csstype';
-import { getElementMargins, getPageLayout, getPageMargins, type Template, ZOOM } from '@pdfme/common';
+import { getPageMargins, type Template, ZOOM } from '@pdfme/common';
 import { theme } from 'antd';
 
 const getPaddingStyle = (i: number, p: number, color: string): CSS.Properties => {
@@ -38,25 +38,6 @@ const getPaddingStyle = (i: number, p: number, color: string): CSS.Properties =>
       style.bottom = 0;
       break;
   }
-  return style;
-};
-
-const getElementMarginStyle = (
-  schema: { position: { x: number; y: number }; width: number; height: number },
-  margin: number,
-  side: number,
-  color: string,
-): CSS.Properties => {
-  const left = schema.position.x * ZOOM;
-  const top = schema.position.y * ZOOM;
-  const width = schema.width * ZOOM;
-  const height = schema.height * ZOOM;
-  const size = margin * ZOOM;
-  const style: CSS.Properties = { position: 'absolute', background: color, opacity: 0.16, pointerEvents: 'none', zIndex: 3 };
-  if (side === 0) Object.assign(style, { left, top: top - size, width, height: size });
-  if (side === 1) Object.assign(style, { left: left + width, top, width: size, height });
-  if (side === 2) Object.assign(style, { left, top: top + height, width, height: size });
-  if (side === 3) Object.assign(style, { left: left - size, top, width: size, height });
   return style;
 };
 
@@ -100,28 +81,13 @@ const getMarginGuideStyle = (i: number, p: number, color: string): CSS.Propertie
   return style;
 };
 
-const Padding = ({
-  template,
-  pageIndex,
-  schemas,
-}: {
-  template: Template;
-  pageIndex: number;
-  schemas: Template['schemas'][number];
-}) => {
+const Padding = ({ template, pageIndex }: { template: Template; pageIndex: number }) => {
   const { token } = theme.useToken();
   const layout = template.layout?.pages?.[pageIndex];
   if (layout && !layout.showMargins) return null;
   const margins = getPageMargins(template, pageIndex);
-  const elementMargins = getElementMargins(getPageLayout(template, pageIndex));
   return (
     <>
-      {schemas.flatMap((schema) =>
-        [elementMargins.top, elementMargins.right, elementMargins.bottom, elementMargins.left].map(
-          (margin, side) =>
-            margin > 0 ? <div key={`${schema.name}-${side}`} style={getElementMarginStyle(schema, margin, side, token.colorWarning)} /> : null,
-        ),
-      )}
       {[margins.top, margins.right, margins.bottom, margins.left].map((margin, index) =>
         margin > 0 ? (
           <React.Fragment key={String(index)}>
