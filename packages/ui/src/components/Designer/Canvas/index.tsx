@@ -239,21 +239,6 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   }, [renderScale]);
 
   const onDrag = ({ target, top, left }: OnDrag) => {
-    const schema = schemasList[pageCursor]?.find((candidate) => candidate.id === target.id);
-    if (
-      schema &&
-      !isSchemaPlacementFree({
-        schema: {
-          position: { x: left / ZOOM, y: top / ZOOM },
-          width: schema.width,
-          height: schema.height,
-        },
-        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== schema.id),
-        bounds: contentBounds,
-        margins: getElementMargins(pageLayout),
-      })
-    )
-      return;
     target.style.top = `${top}px`;
     target.style.left = `${left}px`;
     updateSnapFeedback({
@@ -267,6 +252,24 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const onDragEnd = ({ target }: { target: HTMLElement | SVGElement }) => {
     setSnapFeedback(null);
     const { top, left } = target.style;
+    const schema = schemasList[pageCursor]?.find((candidate) => candidate.id === target.id);
+    if (
+      schema &&
+      !isSchemaPlacementFree({
+        schema: {
+          position: { x: fmt(left), y: fmt(top) },
+          width: schema.width,
+          height: schema.height,
+        },
+        schemas: schemasList[pageCursor].filter((candidate) => candidate.id !== schema.id),
+        bounds: contentBounds,
+        margins: getElementMargins(pageLayout),
+      })
+    ) {
+      target.style.top = `${schema.position.y * ZOOM}px`;
+      target.style.left = `${schema.position.x * ZOOM}px`;
+      return;
+    }
     changeSchemas([
       { key: 'position.y', value: fmt(top), schemaId: target.id },
       { key: 'position.x', value: fmt(left), schemaId: target.id },
@@ -687,7 +690,11 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                 grid={getPageLayout(template, index).grid}
                 pageSize={{ width: paperSize.width / ZOOM, height: paperSize.height / ZOOM }}
               />
-              <Padding template={template} pageIndex={index} />
+              <Padding
+                template={template}
+                pageIndex={index}
+                schemas={schemasList[index] ?? []}
+              />
               <StaticSchema
                 template={{ schemas: schemasList, basePdf }}
                 input={Object.fromEntries(

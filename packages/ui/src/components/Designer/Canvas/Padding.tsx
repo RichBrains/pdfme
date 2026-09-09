@@ -100,13 +100,20 @@ const getMarginGuideStyle = (i: number, p: number, color: string): CSS.Propertie
   return style;
 };
 
-const Padding = ({ template, pageIndex }: { template: Template; pageIndex: number }) => {
+const Padding = ({
+  template,
+  pageIndex,
+  schemas,
+}: {
+  template: Template;
+  pageIndex: number;
+  schemas: Template['schemas'][number];
+}) => {
   const { token } = theme.useToken();
   const layout = template.layout?.pages?.[pageIndex];
   if (layout && !layout.showMargins) return null;
   const margins = getPageMargins(template, pageIndex);
   const elementMargins = getElementMargins(getPageLayout(template, pageIndex));
-  const schemas = template.schemas[pageIndex] ?? [];
   return (
     <>
       {schemas.flatMap((schema) =>
