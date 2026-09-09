@@ -251,6 +251,8 @@ export const ReflowScope = z.enum(['page', 'flow']);
 export const PageLayoutSettings = z.object({
   margins: PageMargins,
   reflowScope: ReflowScope.optional(),
+  /** Four-sided margin (mm) used when snapping to another element. */
+  elementMargins: PageMargins.optional(),
   showMargins: z.boolean(),
   grid: GridSettings,
   /** Guides running horizontally (snap on the y axis). */

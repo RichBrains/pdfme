@@ -1,5 +1,6 @@
 import {
   getContentBounds,
+  getElementMargins,
   getGridSpacingMm,
   getGuidePositions,
   getPageLayout,
@@ -125,6 +126,7 @@ export const getLayoutSnapTargets = ({
 }): LayoutSnapTargets => {
   const layout = getPageLayout(template, pageIndex);
   const bounds = getContentBounds(layout.margins, pageSize);
+  const elementMargins = getElementMargins(layout);
   const targets: LayoutSnapTargets['targets'] = [];
   [0, pageSize.width / 2, pageSize.width].forEach((position) =>
     add(targets, 'vertical', position, 'page'),
@@ -146,15 +148,17 @@ export const getLayoutSnapTargets = ({
   schemas
     .filter((schema) => !selectedIds.includes(schema.id))
     .forEach((schema) => {
+      // Fields snap to the outer boundary of another field's configured margin,
+      // not directly to its bounding box. Zero margins preserve the old targets.
       [
-        schema.position.x,
+        schema.position.x - elementMargins.left,
         schema.position.x + schema.width / 2,
-        schema.position.x + schema.width,
+        schema.position.x + schema.width + elementMargins.right,
       ].forEach((position) => add(targets, 'vertical', position, 'field'));
       [
-        schema.position.y,
+        schema.position.y - elementMargins.top,
         schema.position.y + schema.height / 2,
-        schema.position.y + schema.height,
+        schema.position.y + schema.height + elementMargins.bottom,
       ].forEach((position) => add(targets, 'horizontal', position, 'field'));
     });
   return {

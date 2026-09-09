@@ -1,6 +1,11 @@
 import React, { useContext } from 'react';
 import { InputNumber, Select, Switch, Typography } from 'antd';
-import { getPageLayout, type PageLayoutSettings, type Template } from '@pdfme/common';
+import {
+  getElementMargins,
+  getPageLayout,
+  type PageLayoutSettings,
+  type Template,
+} from '@pdfme/common';
 import { I18nContext } from '../../../../contexts.js';
 
 const MARGIN_LABEL_KEYS = {
@@ -77,6 +82,22 @@ const LayoutSettings = ({
             }))
           }
         />
+        {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+          <React.Fragment key={`element-${side}`}>
+            <span>{`${i18n('layoutElementSpacing')} ${side}`}</span>
+            <InputNumber
+              size="small"
+              min={0}
+              value={getElementMargins(layout)[side]}
+              onChange={(value) =>
+                update((current) => ({
+                  ...current,
+                  elementMargins: { ...getElementMargins(current), [side]: value ?? 0 },
+                }))
+              }
+            />
+          </React.Fragment>
+        ))}
         <span>{i18n('layoutGridUnit')}</span>
         <Select
           size="small"

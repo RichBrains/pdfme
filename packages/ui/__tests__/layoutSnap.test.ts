@@ -52,6 +52,29 @@ describe('getLayoutSnapTargets', () => {
     expect(targets.vertical).not.toContain(31);
     expect(targets.horizontal).not.toContain(41);
   });
+
+  it('uses element-margin boundaries for field snap targets', () => {
+    const targets = getLayoutSnapTargets({
+      template: {
+        ...template,
+        layout: {
+          pages: [
+            {
+              ...template.layout!.pages[0],
+              elementMargins: { top: 3, right: 4, bottom: 5, left: 6 },
+            },
+          ],
+        },
+      },
+      pageIndex: 0,
+      pageSize: { width: 100, height: 100 },
+      schemas: [schema('active', 1, 1), schema('other', 30, 40)],
+      selectedIds: ['active'],
+    });
+
+    expect(targets.vertical).toEqual(expect.arrayContaining([24, 35, 44]));
+    expect(targets.horizontal).toEqual(expect.arrayContaining([37, 45, 55]));
+  });
 });
 
 import { getSnapFeedback } from '../src/components/Designer/Canvas/layoutSnap.js';

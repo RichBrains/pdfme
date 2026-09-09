@@ -53,10 +53,12 @@ export const getDefaultPageMargins = (basePdf: BasePdf): PageMargins => {
 };
 
 export const DEFAULT_REFLOW_SCOPE: ReflowScope = 'page';
+export const DEFAULT_ELEMENT_MARGINS: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export const getDefaultPageLayout = (basePdf: BasePdf): PageLayoutSettings => ({
   margins: getDefaultPageMargins(basePdf),
   reflowScope: DEFAULT_REFLOW_SCOPE,
+  elementMargins: DEFAULT_ELEMENT_MARGINS,
   showMargins: true,
   grid: getDefaultGridSettings(),
   horizontalGuides: [],
@@ -71,6 +73,10 @@ export const getPageLayout = (template: Template, pageIndex: number): PageLayout
 
 export const getPageMargins = (template: Template, pageIndex: number): PageMargins =>
   getPageLayout(template, pageIndex).margins;
+
+/** Returns the four-sided margin used when snapping against other elements. */
+export const getElementMargins = (layout: PageLayoutSettings): PageMargins =>
+  layout.elementMargins ?? DEFAULT_ELEMENT_MARGINS;
 
 /** Creates a fully populated layout for every page of the template. */
 export const normalizeTemplateLayout = (template: Template): TemplateLayout => ({
