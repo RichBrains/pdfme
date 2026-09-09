@@ -23,8 +23,7 @@ import {
   getTemplateContentBounds,
   getReflowScope,
   getElementMargins,
-  isSchemaPlacementFree,
-  findFreeSchemaPosition,
+  clampToContentBounds,
   replacePlaceholders,
   Font,
 } from '@pdfme/common';
@@ -392,48 +391,22 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     () => getTemplateContentBounds(template, pageCursor, currentPageSize),
     [template, pageCursor, currentPageSize],
   );
-  // Elements may legitimately sit outside the content area (pdfme only warns
-  // about it), so element margins are enforced against siblings over the whole
-  // page. Gestures stay unrestricted and the drop point is corrected instead.
-  const pageBounds = useMemo(
-    () => ({
-      left: 0,
-      top: 0,
-      right: currentPageSize.width,
-      bottom: currentPageSize.height,
-      width: currentPageSize.width,
-      height: currentPageSize.height,
-    }),
-    [currentPageSize],
-  );
-
   /**
-   * Returns the position a dropped element should keep, or `undefined` when the
-   * drop point itself already respects the configured element margins.
+   * Aligns a dropped element to the page margins. Overlapping siblings is left
+   * to the author: only free-space placement of brand new fields avoids it, so
+   * an existing field is never relocated behind the author's back.
    */
   const resolveDropPosition = (
     schema: SchemaForUI | undefined,
     position: { x: number; y: number },
   ): { x: number; y: number } | undefined => {
     if (!schema) return undefined;
-    const siblings = (schemasList[pageCursor] || []).filter(
-      (candidate) => candidate.id !== schema.id,
+    const aligned = clampToContentBounds(
+      { position, width: schema.width, height: schema.height },
+      contentBounds,
     );
-    const placement = { position, width: schema.width, height: schema.height };
-    const margins = getElementMargins(pageLayout);
-    if (
-      isSchemaPlacementFree({ schema: placement, schemas: siblings, bounds: pageBounds, margins })
-    )
-      return undefined;
-    return (
-      findFreeSchemaPosition({
-        schema: placement,
-        schemas: siblings,
-        bounds: pageBounds,
-        margins,
-        preferredPosition: position,
-      }) ?? { x: schema.position.x, y: schema.position.y }
-    );
+    if (aligned.x === position.x && aligned.y === position.y) return undefined;
+    return aligned;
   };
 
   // Rendered on the element itself, so the bands stay attached while dragging.
