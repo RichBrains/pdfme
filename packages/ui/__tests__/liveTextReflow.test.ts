@@ -34,20 +34,19 @@ describe('getLiveTextReflowChanges', () => {
     ]);
   });
 
-  it('maintains configured spacing below the edited field', () => {
+  it('keeps a reflow follower directly below the expanded field', () => {
     const active = schema('active', 10, 10);
-    const follower = schema('follower', 25, 10);
+    const follower = schema('follower', 20, 10);
     expect(
       getLiveTextReflowChanges({
         schemas: [active, follower],
         schema: active,
         height: 16,
         scope: 'page',
-        elementSpacing: 5,
       }),
     ).toEqual([
       { key: 'height', value: 16, schemaId: 'active' },
-      { key: 'position.y', value: 31, schemaId: 'follower' },
+      { key: 'position.y', value: 26, schemaId: 'follower' },
     ]);
   });
 });

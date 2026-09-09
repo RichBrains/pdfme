@@ -1,7 +1,6 @@
 import {
   clampToContentBounds,
   findFreeSchemaPosition,
-  getElementSpacing,
   getReflowFollowers,
   getReflowScope,
   getContentBounds,
@@ -144,18 +143,6 @@ describe('free schema placement', () => {
     ).toEqual({ x: 30, y: 10 });
   });
 
-  it('treats configured spacing as a margin around existing fields', () => {
-    expect(
-      findFreeSchemaPosition({
-        schema,
-        schemas: [{ position: { x: 10, y: 10 }, width: 20, height: 20 }],
-        bounds,
-        margins: { top: 5, right: 5, bottom: 5, left: 5 },
-        preferredPosition: { x: 10, y: 10 },
-      }),
-    ).toEqual({ x: 40, y: 10 });
-  });
-
   it('returns no position when the content area is full', () => {
     expect(
       findFreeSchemaPosition({
@@ -207,11 +194,6 @@ describe('reflow scope', () => {
     expect(getReflowScope({ ...getDefaultPageLayout(customPdf), reflowScope: undefined })).toBe(
       'page',
     );
-  });
-
-  it('defaults element spacing to zero for backward compatibility', () => {
-    expect(getElementSpacing(getDefaultPageLayout(customPdf))).toBe(0);
-    expect(getElementSpacing({ ...getDefaultPageLayout(customPdf), elementSpacing: 4 })).toBe(4);
   });
 
   it('moves every lower field in page scope', () => {

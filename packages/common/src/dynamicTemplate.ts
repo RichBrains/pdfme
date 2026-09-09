@@ -11,7 +11,7 @@ import {
   Size,
 } from './types.js';
 import { cloneDeep, isBlankPdf } from './helper.js';
-import { getElementMargins, getPageLayout, getPageMargins, getReflowScope } from './layout.js';
+import { getPageLayout, getPageMargins, getReflowScope } from './layout.js';
 import { replacePlaceholders } from './expression.js';
 
 /** Floating point tolerance for comparisons */
@@ -300,7 +300,6 @@ function processDynamicPage(
   paddingTop: number,
   allowPageBreak: boolean,
   scope: ReflowScope,
-  elementSpacing: number,
 ): Schema[][] {
   const pages: Schema[][] = [];
   // With the `page` scope a single running offset shifts everything below the
@@ -325,16 +324,15 @@ function processDynamicPage(
       pages,
     );
 
-    // Preserve the source layout's gaps when they are already wider than the
-    // configured minimum, but increase the running offset when the next field
-    // would otherwise be too close to this field's expanded bounding box.
+    // Preserve the source layout's gaps when an expanding field moves the next
+    // field in its reflow scope.
     const originalGlobalEndY = item.baseY + item.height;
     if (flowKey !== '' || scope === 'page') {
       const nextInFlow = items
         .slice(index + 1)
         .find((candidate) => flowKeyOf(candidate.schema) === flowKey);
       const minimumOffset = nextInFlow
-        ? actualGlobalEndY + elementSpacing - nextInFlow.baseY
+        ? actualGlobalEndY - nextInFlow.baseY
         : Number.NEGATIVE_INFINITY;
       offsets.set(flowKey, Math.max(actualGlobalEndY - originalGlobalEndY, minimumOffset));
     }
@@ -426,7 +424,6 @@ export const getDynamicTemplate = async (
       paddingTop,
       allowPageBreak,
       getReflowScope(pageLayout),
-      getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
     );
     resultPages.push(...processedPages);
   }

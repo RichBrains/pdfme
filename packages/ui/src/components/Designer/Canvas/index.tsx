@@ -22,7 +22,6 @@ import {
   isOutsideContentBounds,
   getTemplateContentBounds,
   getReflowScope,
-  getElementMargins,
   clampToContentBounds,
   replacePlaceholders,
   Font,
@@ -409,19 +408,6 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     return aligned;
   };
 
-  // Rendered on the element itself, so the bands stay attached while dragging.
-  const elementMarginShadow = useMemo(() => {
-    if (!pageLayout.showMargins) return undefined;
-    const margins = getElementMargins(pageLayout);
-    const layers = [
-      margins.top > 0 ? `0 -${margins.top * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
-      margins.right > 0 ? `${margins.right * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
-      margins.bottom > 0 ? `0 ${margins.bottom * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
-      margins.left > 0 ? `-${margins.left * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
-    ].filter(Boolean);
-    return layers.length ? layers.join(', ') : undefined;
-  }, [pageLayout, token.colorWarningBg]);
-
   const snapTargets = useMemo(
     () =>
       getLayoutSnapTargets({
@@ -508,7 +494,6 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           width: typeof patch.width === 'number' ? patch.width : undefined,
           height: minimumHeight,
           scope: getReflowScope(pageLayout),
-          elementSpacing: getElementMargins(pageLayout).bottom + getElementMargins(pageLayout).top,
           maxBottom: contentBounds.bottom,
         }),
       ];
@@ -842,7 +827,6 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                     ? 'transparent'
                     : token.colorPrimary
               }`}
-              marginShadow={elementMarginShadow}
               scale={renderScale}
             />
           );

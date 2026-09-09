@@ -83,33 +83,6 @@ describe('getDynamicTemplate', () => {
       );
       expect(dynamicTemplate.schemas[0][1].name).toEqual('b');
     });
-
-    test('maintains configured element spacing after dynamic reflow', async () => {
-      const dynamicTemplate = await getDynamicTemplate({
-        ...getDynamicTemplateArg,
-        template: {
-          ...template,
-          layout: {
-            pages: [
-              {
-                margins: { top: padding, right: padding, bottom: padding, left: padding },
-                reflowScope: 'page',
-                elementMargins: { top: 10, right: 0, bottom: 5, left: 0 },
-                showMargins: true,
-                grid: { visible: false, snap: false, spacing: 5, unit: 'mm' },
-                horizontalGuides: [],
-                verticalGuides: [],
-              },
-            ],
-          },
-        },
-        getDynamicHeights: async (_value: string, args: { schema: Schema }) =>
-          args.schema.type === 'a' ? Promise.resolve([12]) : Promise.resolve([args.schema.height]),
-      });
-
-      expect(dynamicTemplate.schemas[0][0].position.y).toBe(aPositionY);
-      expect(dynamicTemplate.schemas[0][1].position.y).toBe(37);
-    });
   });
 
   describe('Multiple page scenarios', () => {

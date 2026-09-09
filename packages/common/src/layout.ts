@@ -53,14 +53,10 @@ export const getDefaultPageMargins = (basePdf: BasePdf): PageMargins => {
 };
 
 export const DEFAULT_REFLOW_SCOPE: ReflowScope = 'page';
-/** Existing templates retain their current behavior until element margins are configured. */
-export const DEFAULT_ELEMENT_SPACING_MM = 0;
-export const DEFAULT_ELEMENT_MARGINS: PageMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export const getDefaultPageLayout = (basePdf: BasePdf): PageLayoutSettings => ({
   margins: getDefaultPageMargins(basePdf),
   reflowScope: DEFAULT_REFLOW_SCOPE,
-  elementMargins: DEFAULT_ELEMENT_MARGINS,
   showMargins: true,
   grid: getDefaultGridSettings(),
   horizontalGuides: [],
@@ -127,42 +123,27 @@ export const clampToContentBounds = (
 
 export type SchemaPlacement = Pick<Schema, 'position' | 'width' | 'height'>;
 
-/** Returns normalized four-sided margins, reading the retired scalar setting for old templates. */
-export const getElementMargins = (layout: PageLayoutSettings): PageMargins => {
-  if (layout.elementMargins) return layout.elementMargins;
-  const spacing = Math.max(0, layout.elementSpacing ?? DEFAULT_ELEMENT_SPACING_MM);
-  return { top: spacing, right: spacing, bottom: spacing, left: spacing };
-};
-
-export const isSchemaPlacementFree = (arg: {
-  schema: SchemaPlacement;
-  schemas: SchemaPlacement[];
-  bounds: ContentBounds;
-  margins: PageMargins;
-}): boolean => {
-  const { schema, schemas, bounds, margins } = arg;
-  if (isOutsideContentBounds(schema, bounds)) return false;
-  return schemas.every((existing) =>
-    schema.position.x + schema.width + margins.right <= existing.position.x - margins.left ||
-    schema.position.x - margins.left >= existing.position.x + existing.width + margins.right ||
-    schema.position.y + schema.height + margins.bottom <= existing.position.y - margins.top ||
-    schema.position.y - margins.top >= existing.position.y + existing.height + margins.bottom,
-  );
-};
-
 /** Finds the first non-overlapping position for a new schema within page content bounds. */
 export const findFreeSchemaPosition = (arg: {
   schema: SchemaPlacement;
   schemas: SchemaPlacement[];
   bounds: ContentBounds;
-  margins?: PageMargins;
   preferredPosition?: { x: number; y: number };
 }): { x: number; y: number } | undefined => {
   const { schema, schemas, bounds, preferredPosition } = arg;
-  const margins = arg.margins ?? DEFAULT_ELEMENT_MARGINS;
   if (schema.width > bounds.width || schema.height > bounds.height) return undefined;
-  const fits = (position: { x: number; y: number }) =>
-    isSchemaPlacementFree({ schema: { ...schema, position }, schemas, bounds, margins });
+
+  const fits = (position: { x: number; y: number }): boolean => {
+    const candidate = { ...schema, position };
+    if (isOutsideContentBounds(candidate, bounds)) return false;
+    return schemas.every(
+      (existing) =>
+        candidate.position.x + candidate.width <= existing.position.x ||
+        candidate.position.x >= existing.position.x + existing.width ||
+        candidate.position.y + candidate.height <= existing.position.y ||
+        candidate.position.y >= existing.position.y + existing.height,
+    );
+  };
 
   if (preferredPosition) {
     const preferred = clampToContentBounds({ ...schema, position: preferredPosition }, bounds);
@@ -172,17 +153,26 @@ export const findFreeSchemaPosition = (arg: {
   const xCandidates = new Set<number>([bounds.left, bounds.right - schema.width]);
   const yCandidates = new Set<number>([bounds.top, bounds.bottom - schema.height]);
   schemas.forEach((existing) => {
-    xCandidates.add(existing.position.x - margins.left - margins.right - schema.width);
-    xCandidates.add(existing.position.x + existing.width + margins.right + margins.left);
-    yCandidates.add(existing.position.y - margins.top - margins.bottom - schema.height);
-    yCandidates.add(existing.position.y + existing.height + margins.bottom + margins.top);
+    xCandidates.add(existing.position.x - schema.width);
+    xCandidates.add(existing.position.x + existing.width);
+    yCandidates.add(existing.position.y - schema.height);
+    yCandidates.add(existing.position.y + existing.height);
   });
 
-  for (const y of [...yCandidates].filter((v) => v >= bounds.top && v + schema.height <= bounds.bottom).sort((a, b) => a - b)) {
-    for (const x of [...xCandidates].filter((v) => v >= bounds.left && v + schema.width <= bounds.right).sort((a, b) => a - b)) {
-      if (fits({ x, y })) return { x, y };
+  const xs = [...xCandidates]
+    .filter((x) => x >= bounds.left && x + schema.width <= bounds.right)
+    .sort((a, b) => a - b);
+  const ys = [...yCandidates]
+    .filter((y) => y >= bounds.top && y + schema.height <= bounds.bottom)
+    .sort((a, b) => a - b);
+
+  for (const y of ys) {
+    for (const x of xs) {
+      const position = { x, y };
+      if (fits(position)) return position;
     }
   }
+
   return undefined;
 };
 
@@ -204,9 +194,6 @@ export const getGuidePositions = (guides: RulerGuide[]): number[] =>
 
 export const getReflowScope = (layout: PageLayoutSettings): ReflowScope =>
   layout.reflowScope ?? DEFAULT_REFLOW_SCOPE;
-
-export const getElementSpacing = (layout: PageLayoutSettings): number =>
-  Math.max(0, layout.elementSpacing ?? DEFAULT_ELEMENT_SPACING_MM);
 
 /**
  * Fields that should move when `schema` grows.
