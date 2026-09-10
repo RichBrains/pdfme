@@ -12,7 +12,6 @@ import {
   isBlankPdf,
   PluginRegistry,
 } from '@pdfme/common';
-import { pdf2size } from '@pdfme/converter';
 import { DEFAULT_MAX_ZOOM, PAGE_GAP, RULER_HEIGHT } from './constants.js';
 import { OptionsContext } from './contexts.js';
 
@@ -300,6 +299,9 @@ export const template2SchemasList = async (_template: Template) => {
     // pdf2size accepts both ArrayBuffer and Uint8Array
     const pdfArrayBuffer = b64toUint8Array(b64BasePdf);
 
+    // Loaded lazily so blank templates never fetch the converter (and its
+    // PDFium WASM/worker) at all.
+    const { pdf2size } = await import('@pdfme/converter');
     pageSizes = await pdf2size(pdfArrayBuffer);
   }
 

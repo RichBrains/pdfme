@@ -26,7 +26,26 @@ const isExternal = (id: string) =>
 export default defineConfig(() => {
   return {
     base: './',
+    resolve: {
+      alias: [
+        // clawpdf resolves its WASM via bare `new URL("...pdfium.esm.wasm")`
+        // references (Emscripten `findWasmBinary` fallback). In lib mode Vite
+        // force-inlines those as ~5MB base64 `data:` URLs into the worker.
+        // Point them at an empty stub instead: the worker always passes an
+        // explicit `wasmUrl` to `createEngine` (see clawpdf-worker.ts), so
+        // the inlined fallback is dead code. The lookahead keeps our real
+        // `?url&no-inline` import resolving to the actual WASM file.
+        {
+          find: /pdfium\.esm\.wasm(?!.*no-inline)/,
+          replacement: resolve(__dirname, 'src/empty-pdfium-stub.wasm'),
+        },
+      ],
+    },
     build: {
+      // PDFium's WASM must stay a separate file next to the worker: the
+      // Emscripten loader fetches it via XHR/fetch, which cannot load the
+      // `data:` URLs Vite would otherwise inline into the worker bundle.
+      assetsInlineLimit: 0,
       lib: {
         entry: {
           index: resolve(__dirname, 'src/index.browser.ts'),

@@ -18,8 +18,6 @@ import {
   ChangeSchemas,
   isBlankPdf,
 } from '@pdfme/common';
-import { pdf2img, pdf2size } from '@pdfme/converter';
-
 import {
   schemasList2template,
   uuid,
@@ -95,6 +93,9 @@ export const useUIPreProcessor = ({ template, size, zoomLevel, maxZoom }: UIPreP
         };
 
         const [pageSizeBuffer, imageBuffer] = [createPdfArrayBuffer(), createPdfArrayBuffer()];
+        // Loaded lazily so blank templates never fetch the converter (and
+        // its PDFium WASM/worker) at all.
+        const { pdf2img, pdf2size } = await import('@pdfme/converter');
         const [_pages, imgBuffers] = await Promise.all([
           pdf2size(pageSizeBuffer),
           pdf2img(imageBuffer, { scale: maxZoom }),

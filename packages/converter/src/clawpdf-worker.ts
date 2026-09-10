@@ -1,6 +1,12 @@
-import { createEngine, type PdfDocument, type PdfEngine } from 'clawpdf/browser';
+import { createEngine, type PdfDocument, type PdfEngine } from 'clawpdf';
 import { pdf2img, type Pdf2ImgOptions } from './pdf2img.js';
 import { pdf2size, type Pdf2SizeOptions } from './pdf2size.js';
+// Explicit `?url&no-inline` import: this package builds in Vite lib mode,
+// which force-inlines every bare `new URL(..., import.meta.url)` asset
+// (including clawpdf's own internal wasm reference) as a base64 `data:` URL.
+// PDFium's loader fetches the WASM via XHR/fetch and cannot load `data:`
+// URLs, so the file must always be emitted next to the worker instead.
+import wasmUrl from '../../../node_modules/clawpdf/dist/vendor/pdfium.esm.wasm?url&no-inline';
 
 type WorkerScope = {
   addEventListener: (
@@ -30,7 +36,7 @@ const clonePdfData = (pdf: ArrayBuffer | Uint8Array) =>
 let enginePromise: Promise<PdfEngine> | undefined;
 
 const getEngine = () => {
-  enginePromise ??= createEngine();
+  enginePromise ??= createEngine({ wasmUrl });
   return enginePromise;
 };
 

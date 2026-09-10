@@ -1,5 +1,9 @@
 import type { Plugin, Schema } from '@pdfme/common';
 import { ZOOM } from '@pdfme/common';
+// Static import (not dynamic): the signature pad is tiny, and a dynamic
+// import forces Vite's preload helper into lazy chunks, dragging them into
+// the host app's initial preload list.
+import SignaturePad from 'signature_pad';
 import image from './image.js';
 
 export type SignatureSchema = Schema;
@@ -40,7 +44,6 @@ const getEffectiveScale = (element: HTMLElement | null) => {
 const signature: Plugin<SignatureSchema> = {
   ui: async (arg) => {
     const { schema, value, onChange, rootElement, mode, i18n } = arg;
-    const { default: SignaturePad } = await import('signature_pad');
 
     const canvas = document.createElement('canvas');
     canvas.width = schema.width * ZOOM;

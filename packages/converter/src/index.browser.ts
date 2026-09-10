@@ -1,4 +1,4 @@
-import type { PdfDocument, PdfEngine } from 'clawpdf/browser';
+import { createEngine, type PdfDocument, type PdfEngine } from 'clawpdf/browser';
 import { pdf2img as _pdf2img, Pdf2ImgOptions } from './pdf2img.js';
 import { pdf2size as _pdf2size, Pdf2SizeOptions } from './pdf2size.js';
 import workerSrc from './clawpdf-worker.js?worker&url';
@@ -30,17 +30,16 @@ type PendingWorkerRequest = {
 };
 
 let enginePromise: Promise<PdfEngine> | undefined;
-let clawpdfPromise: Promise<typeof import('clawpdf/browser')> | undefined;
 let worker: Worker | undefined;
 let workerRequestId = 0;
 const pendingWorkerRequests = new Map<number, PendingWorkerRequest>();
 
 const getEngine = () => {
-  enginePromise ??= (async () => {
-    clawpdfPromise ??= import('clawpdf/browser');
-    const { createEngine } = await clawpdfPromise;
-    return createEngine();
-  })();
+  // Static import (not dynamic): this module only ever loads as part of the
+  // lazily-fetched converter chunk, so deferring the engine buys nothing but
+  // forces Vite's preload helper into lazy chunks, dragging them into the
+  // host app's initial preload list.
+  enginePromise ??= createEngine();
   return enginePromise;
 };
 
