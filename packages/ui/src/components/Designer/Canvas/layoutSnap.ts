@@ -148,17 +148,26 @@ export const getLayoutSnapTargets = ({
   schemas
     .filter((schema) => !selectedIds.includes(schema.id))
     .forEach((schema) => {
-      // Fields snap to the outer boundary of another field's configured margin,
-      // not directly to its bounding box. Zero margins preserve the old targets.
+      // Moveable snaps bounding-box edges. Offset each guideline by the dragged
+      // field's corresponding margin so the yellow margin boundaries meet.
+      const left = schema.position.x - elementMargins.left;
+      const right = schema.position.x + schema.width + elementMargins.right;
       [
-        schema.position.x - elementMargins.left,
+        left + elementMargins.left,
+        right + elementMargins.left,
         schema.position.x + schema.width / 2,
-        schema.position.x + schema.width + elementMargins.right,
+        left - elementMargins.right,
+        right - elementMargins.right,
       ].forEach((position) => add(targets, 'vertical', position, 'field'));
+
+      const top = schema.position.y - elementMargins.top;
+      const bottom = schema.position.y + schema.height + elementMargins.bottom;
       [
-        schema.position.y - elementMargins.top,
+        top + elementMargins.top,
+        bottom + elementMargins.top,
         schema.position.y + schema.height / 2,
-        schema.position.y + schema.height + elementMargins.bottom,
+        top - elementMargins.bottom,
+        bottom - elementMargins.bottom,
       ].forEach((position) => add(targets, 'horizontal', position, 'field'));
     });
   return {

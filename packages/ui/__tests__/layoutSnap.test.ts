@@ -53,7 +53,7 @@ describe('getLayoutSnapTargets', () => {
     expect(targets.horizontal).not.toContain(41);
   });
 
-  it('uses element-margin boundaries for field snap targets', () => {
+  it('offsets field targets so element margins align with each other', () => {
     const targets = getLayoutSnapTargets({
       template: {
         ...template,
@@ -72,8 +72,10 @@ describe('getLayoutSnapTargets', () => {
       selectedIds: ['active'],
     });
 
-    expect(targets.vertical).toEqual(expect.arrayContaining([24, 35, 44]));
-    expect(targets.horizontal).toEqual(expect.arrayContaining([37, 45, 55]));
+    // Each target is offset so a dragged field's yellow margin boundary meets
+    // the other field's yellow margin boundary, rather than its box edge.
+    expect(targets.vertical).toEqual(expect.arrayContaining([20, 30, 35, 40, 50]));
+    expect(targets.horizontal).toEqual(expect.arrayContaining([32, 40, 45, 50, 58]));
   });
 });
 
