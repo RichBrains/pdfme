@@ -22,6 +22,7 @@ import {
   isOutsideContentBounds,
   getTemplateContentBounds,
   getReflowScope,
+  getElementMargins,
   clampToContentBounds,
   replacePlaceholders,
   Font,
@@ -407,6 +408,20 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     if (aligned.x === position.x && aligned.y === position.y) return undefined;
     return aligned;
   };
+
+  // The margin bands belong to each field so they follow it while dragging
+  // without intercepting pointer events.
+  const elementMarginShadow = useMemo(() => {
+    if (!pageLayout.showMargins) return undefined;
+    const margins = getElementMargins(pageLayout);
+    const layers = [
+      margins.top > 0 ? `0 -${margins.top * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
+      margins.right > 0 ? `${margins.right * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
+      margins.bottom > 0 ? `0 ${margins.bottom * ZOOM}px 0 0 ${token.colorWarningBg}` : '',
+      margins.left > 0 ? `-${margins.left * ZOOM}px 0 0 0 ${token.colorWarningBg}` : '',
+    ].filter(Boolean);
+    return layers.length ? layers.join(', ') : undefined;
+  }, [pageLayout, token.colorWarningBg]);
 
   const snapTargets = useMemo(
     () =>
@@ -827,6 +842,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                     ? 'transparent'
                     : token.colorPrimary
               }`}
+              marginShadow={elementMarginShadow}
               scale={renderScale}
             />
           );

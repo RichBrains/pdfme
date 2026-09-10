@@ -129,27 +129,37 @@ export const clampToContentBounds = (
 
 export type SchemaPlacement = Pick<Schema, 'position' | 'width' | 'height'>;
 
-/** Finds the first non-overlapping position for a new schema within page content bounds. */
+const isSchemaPlacementFree = (arg: {
+  schema: SchemaPlacement;
+  schemas: SchemaPlacement[];
+  bounds: ContentBounds;
+  margins: PageMargins;
+}): boolean => {
+  const { schema, schemas, bounds, margins } = arg;
+  if (isOutsideContentBounds(schema, bounds)) return false;
+  return schemas.every(
+    (existing) =>
+      schema.position.x + schema.width + margins.right <= existing.position.x - margins.left ||
+      schema.position.x - margins.left >= existing.position.x + existing.width + margins.right ||
+      schema.position.y + schema.height + margins.bottom <= existing.position.y - margins.top ||
+      schema.position.y - margins.top >= existing.position.y + existing.height + margins.bottom,
+  );
+};
+
+/** Finds the first position that keeps element-margin areas separate within page content bounds. */
 export const findFreeSchemaPosition = (arg: {
   schema: SchemaPlacement;
   schemas: SchemaPlacement[];
   bounds: ContentBounds;
+  margins?: PageMargins;
   preferredPosition?: { x: number; y: number };
 }): { x: number; y: number } | undefined => {
   const { schema, schemas, bounds, preferredPosition } = arg;
+  const margins = arg.margins ?? DEFAULT_ELEMENT_MARGINS;
   if (schema.width > bounds.width || schema.height > bounds.height) return undefined;
 
-  const fits = (position: { x: number; y: number }): boolean => {
-    const candidate = { ...schema, position };
-    if (isOutsideContentBounds(candidate, bounds)) return false;
-    return schemas.every(
-      (existing) =>
-        candidate.position.x + candidate.width <= existing.position.x ||
-        candidate.position.x >= existing.position.x + existing.width ||
-        candidate.position.y + candidate.height <= existing.position.y ||
-        candidate.position.y >= existing.position.y + existing.height,
-    );
-  };
+  const fits = (position: { x: number; y: number }): boolean =>
+    isSchemaPlacementFree({ schema: { ...schema, position }, schemas, bounds, margins });
 
   if (preferredPosition) {
     const preferred = clampToContentBounds({ ...schema, position: preferredPosition }, bounds);
@@ -159,10 +169,10 @@ export const findFreeSchemaPosition = (arg: {
   const xCandidates = new Set<number>([bounds.left, bounds.right - schema.width]);
   const yCandidates = new Set<number>([bounds.top, bounds.bottom - schema.height]);
   schemas.forEach((existing) => {
-    xCandidates.add(existing.position.x - schema.width);
-    xCandidates.add(existing.position.x + existing.width);
-    yCandidates.add(existing.position.y - schema.height);
-    yCandidates.add(existing.position.y + existing.height);
+    xCandidates.add(existing.position.x - margins.left - margins.right - schema.width);
+    xCandidates.add(existing.position.x + existing.width + margins.right + margins.left);
+    yCandidates.add(existing.position.y - margins.top - margins.bottom - schema.height);
+    yCandidates.add(existing.position.y + existing.height + margins.bottom + margins.top);
   });
 
   const xs = [...xCandidates]

@@ -20,6 +20,7 @@ import {
   px2mm,
   getPageLayout,
   getContentBounds,
+  getElementMargins,
   findFreeSchemaPosition,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
@@ -415,6 +416,7 @@ const TemplateEditor = ({
       schema: s,
       schemas: schemasList[pageCursor],
       bounds: contentBounds,
+      margins: getElementMargins(pageLayout),
       preferredPosition: defaultSchema.position,
     });
     // The current page is full. Do not create an overlapping field.

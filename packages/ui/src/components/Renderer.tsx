@@ -23,6 +23,8 @@ type RendererProps = Omit<
   schema: SchemaForUI;
   value: string;
   outline: string;
+  /** Yellow box-shadow layers that visualize the field's element margins. */
+  marginShadow?: string;
   onChangeHoveringSchemaId?: (id: string | null) => void;
   onChangeActiveSchemaId?: (id: string | null) => void;
   scale: number;
@@ -67,6 +69,7 @@ const useRenderKey = (arg: ReRenderCheckProps) => {
 const Wrapper = ({
   children,
   outline,
+  marginShadow,
   onChangeHoveringSchemaId,
   onChangeActiveSchemaId,
   schema,
@@ -106,9 +109,13 @@ const Wrapper = ({
         transform: `rotate(${schema.rotate ?? 0}deg)`,
         opacity: schema.opacity ?? 1,
         outline,
-        boxShadow: isActive
-          ? `0 0 0 2px ${token.colorPrimary}, 0 0 0 4px ${token.colorPrimaryBg}`
-          : undefined,
+        boxShadow:
+          [
+            isActive ? `0 0 0 2px ${token.colorPrimary}, 0 0 0 4px ${token.colorPrimaryBg}` : '',
+            marginShadow ?? '',
+          ]
+            .filter(Boolean)
+            .join(', ') || undefined,
         zIndex: isActive ? 1 : undefined,
       }}
     >

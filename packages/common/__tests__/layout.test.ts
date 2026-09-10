@@ -143,6 +143,18 @@ describe('free schema placement', () => {
     ).toEqual({ x: 30, y: 10 });
   });
 
+  it('keeps element-margin areas separate during auto-placement', () => {
+    expect(
+      findFreeSchemaPosition({
+        schema,
+        schemas: [{ position: { x: 10, y: 10 }, width: 20, height: 20 }],
+        bounds,
+        margins: { top: 5, right: 5, bottom: 5, left: 5 },
+        preferredPosition: { x: 10, y: 10 },
+      }),
+    ).toEqual({ x: 40, y: 10 });
+  });
+
   it('returns no position when the content area is full', () => {
     expect(
       findFreeSchemaPosition({
