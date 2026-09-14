@@ -33,6 +33,20 @@ const { Text } = Typography;
 
 const TEXT_OVERFLOW_EXPAND_SCHEMA_TYPES = new Set(['text', 'multiVariableText']);
 
+// Height-locked field types are content-driven (text reflow, list items,
+// table rows), so the numeric height field is display-only. 'conditionalTextBlock'
+// and 'blockTable' are app-specific letter fields rendered through the
+// text/table plugins; kept as literals because the fork cannot import app
+// schema constants.
+const HEIGHT_LOCKED_SCHEMA_TYPES = new Set([
+  'text',
+  'multiVariableText',
+  'conditionalTextBlock',
+  'list',
+  'table',
+  'blockTable',
+]);
+
 type DetailViewProps = Pick<
   SidebarProps,
   | 'size'
@@ -313,6 +327,7 @@ const DetailView = (props: DetailViewProps) => {
   // Calculate max values considering padding
   const maxWidth = pageSize.width - paddingLeft - paddingRight;
   const maxHeight = pageSize.height - paddingTop - paddingBottom;
+  const isHeightLocked = HEIGHT_LOCKED_SCHEMA_TYPES.has(activeSchema.type);
 
   // Create a type-safe schema object
   const propPanelSchema: PropPanelSchema = {
@@ -410,6 +425,7 @@ const DetailView = (props: DetailViewProps) => {
         widget: 'inputNumber',
         required: true,
         span: 6,
+        disabled: isHeightLocked,
         props: { min: 0, max: maxHeight },
         rules: [
           {

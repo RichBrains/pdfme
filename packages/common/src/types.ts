@@ -215,6 +215,15 @@ export interface Plugin<T extends Schema = Schema> {
   propPanel: PropPanel<T & Schema>;
   icon?: string;
   uninterruptedEditMode?: boolean;
+  /**
+   * Maps a schema to a built-in measurable schema so the Designer can keep
+   * the field height content-driven (live reflow). Takes precedence over the
+   * built-in measurement when provided; return null for a static height.
+   */
+  resolveDynamicLayoutTarget?(
+    schema: T & Schema,
+    value: string,
+  ): { schema: Schema; value: string } | null;
 }
 
 export type Plugins = { [key: string]: Plugin };

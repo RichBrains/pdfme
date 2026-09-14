@@ -21,6 +21,8 @@ type Props = {
   snapGridSize?: number;
   keepRatio: boolean;
   rotatable: boolean;
+  /** Restricts which resize handles are rendered (e.g. ['e', 'w'] for width-only). */
+  renderDirections?: string[];
   onDrag: ({ target, left, top }: OnDrag) => void;
   onDragEnd: ({ target }: { target: HTMLElement | SVGElement }) => void;
   onDragGroupEnd: ({ targets }: { targets: (HTMLElement | SVGElement)[] }) => void;
@@ -87,6 +89,7 @@ const Moveable = (props: Props, ref: Ref<MoveableComponent>) => {
       draggable
       rotatable={props.rotatable}
       resizable
+      renderDirections={props.renderDirections}
       throttleDrag={1}
       throttleRotate={1}
       throttleResize={1}

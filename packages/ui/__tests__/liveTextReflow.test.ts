@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getLiveTextReflowChanges } from '../src/components/Designer/Canvas/liveTextReflow.js';
+import {
+  getLiveTextReflowChanges,
+  heightFingerprint,
+  isHeightLockedSchema,
+} from '../src/components/Designer/Canvas/liveTextReflow.js';
 import type { SchemaForUI } from '@pdfme/common';
 
 const schema = (id: string, y: number, height: number): SchemaForUI => ({
@@ -48,5 +52,68 @@ describe('getLiveTextReflowChanges', () => {
       { key: 'height', value: 16, schemaId: 'active' },
       { key: 'position.y', value: 26, schemaId: 'follower' },
     ]);
+  });
+});
+
+describe('isHeightLockedSchema', () => {
+  it.each([
+    'text',
+    'multiVariableText',
+    'conditionalTextBlock',
+    'list',
+    'table',
+    'blockTable',
+  ])('locks %s to its content height', (type) => {
+    expect(isHeightLockedSchema({ type } as SchemaForUI)).toBe(true);
+  });
+
+  it.each(['image', 'line', 'rectangle', 'ellipse', 'svg', 'qrcode', 'signature'])(
+    'leaves %s freely resizable',
+    (type) => {
+      expect(isHeightLockedSchema({ type } as SchemaForUI)).toBe(false);
+    },
+  );
+});
+
+describe('heightFingerprint', () => {
+  const locked = (overrides: Record<string, unknown> = {}): SchemaForUI =>
+    ({
+      id: 'a',
+      name: 'a',
+      type: 'table',
+      content: '[]',
+      position: { x: 10, y: 20 },
+      width: 50,
+      height: 30,
+      ...overrides,
+    }) as SchemaForUI;
+
+  it('changes when content or width changes', () => {
+    const base = heightFingerprint(locked());
+    expect(heightFingerprint(locked({ content: '[["x"]]' }))).not.toBe(base);
+    expect(heightFingerprint(locked({ width: 60 }))).not.toBe(base);
+  });
+
+  it('ignores geometry and volatile generation outputs so reflows converge', () => {
+    const base = heightFingerprint(locked());
+    expect(
+      heightFingerprint(
+        locked({
+          position: { x: 99, y: 99 },
+          dynamicFontSize: { min: 1, max: 2 },
+        }),
+      ),
+    ).toBe(base);
+  });
+
+  it('tracks height outputs so wholesale replacements re-snap', () => {
+    const base = heightFingerprint(locked());
+    expect(heightFingerprint(locked({ height: 99 }))).not.toBe(base);
+    expect(heightFingerprint(locked({ minHeight: 12 }))).not.toBe(
+      base,
+    );
+    expect(
+      heightFingerprint(locked({ contentMinHeight: 14 })),
+    ).not.toBe(base);
   });
 });

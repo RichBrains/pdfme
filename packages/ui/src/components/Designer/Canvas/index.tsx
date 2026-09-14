@@ -13,6 +13,7 @@ import { theme, Button } from 'antd';
 import MoveableComponent, { OnDrag, OnRotate, OnResize } from 'react-moveable';
 import {
   ZOOM,
+  Schema,
   SchemaForUI,
   Size,
   ChangeSchemas,
@@ -41,7 +42,12 @@ import Mask from './Mask.js';
 import Padding from './Padding.js';
 import Grid from './Grid.js';
 import { getLayoutSnapTargets, getSnapFeedback } from './layoutSnap.js';
-import { getLiveTextReflowChanges, type SchemaChange } from './liveTextReflow.js';
+import {
+  getLiveTextReflowChanges,
+  heightFingerprint,
+  isHeightLockedSchema,
+  type SchemaChange,
+} from './liveTextReflow.js';
 import { getDynamicLayoutForSchema, isDynamicLayoutSchema } from '@pdfme/schemas/dynamicLayout';
 import IndentMarkers, { isTextIndentSchema } from './IndentMarkers.js';
 import StaticSchema from '../../StaticSchema.js';
@@ -57,6 +63,8 @@ const normalizeRotate = (angle: number) => ((angle % 360) + 360) % 360;
 /** Text fields keep a content-derived minimum height after they are measured. */
 const isTextSchema = (schema: SchemaForUI): boolean =>
   schema.type === 'text' || schema.type === 'multiVariableText';
+
+type LayoutTarget = { schema: Schema; value: string };
 
 const getSchemaMinHeight = (schema: SchemaForUI): number | undefined => {
   const { minHeight, contentMinHeight } = schema as {
@@ -186,8 +194,9 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const [snapFeedback, setSnapFeedback] = useState<string | null>(null);
   const reflowRequestRef = useRef(0);
   const reflowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reflowFingerprintsRef = useRef(new Map<string, string>());
   const pendingTextChangesRef = useRef<SchemaChange[]>([]);
-  const pendingTextReflowRef = useRef<{ schema: SchemaForUI; value: string } | null>(null);
+  const pendingTextReflowRef = useRef<ReflowItem[] | null>(null);
   // Last live-resize direction, read at resize-end to decide whether the
   // user manually changed a text field's width (vs. only its height).
   const lastResizeDirectionRef = useRef<number[] | null>(null);
@@ -298,20 +307,27 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     const { id, style } = target;
     const { width, height, top, left } = style;
     const targetSchema = schemasList[pageCursor].find((schema) => schema.id === id);
+    const heightLocked = targetSchema ? isHeightLockedSchema(targetSchema) : false;
+    // Height-locked (table) fields ignore vertical drags: height and Y stay
+    // content-driven, only width and X are committed.
+    const nextWidth = fmt(width);
+    const nextHeight = heightLocked ? (targetSchema?.height ?? fmt(height)) : fmt(height);
+    const rawLeft = fmt(left);
+    const rawTop = heightLocked ? (targetSchema?.position.y ?? fmt(top)) : fmt(top);
     // The resized box may now break the element margins, so nudge it to the
     // closest position that still honours them before committing.
     const resized = targetSchema
-      ? { ...targetSchema, width: fmt(width), height: fmt(height) }
+      ? { ...targetSchema, width: nextWidth, height: nextHeight }
       : undefined;
     const position =
-      resolveDropPosition(resized, { x: fmt(left), y: fmt(top) }) ??
-      ({ x: fmt(left), y: fmt(top) } as { x: number; y: number });
+      resolveDropPosition(resized, { x: rawLeft, y: rawTop }) ??
+      ({ x: rawLeft, y: rawTop } as { x: number; y: number });
 
     const changes: SchemaChange[] = [
       { key: 'position.x', value: position.x, schemaId: id },
       { key: 'position.y', value: position.y, schemaId: id },
-      { key: 'width', value: fmt(width), schemaId: id },
-      { key: 'height', value: fmt(height), schemaId: id },
+      { key: 'width', value: nextWidth, schemaId: id },
+      { key: 'height', value: nextHeight, schemaId: id },
     ];
 
     // A horizontal resize handle was dragged: the field's width is no
@@ -321,7 +337,9 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     if (
       targetSchema &&
       resizedHorizontally &&
-      targetSchema.type === 'text' &&
+      (targetSchema.type === 'text' ||
+        targetSchema.type === 'multiVariableText' ||
+        targetSchema.type === 'conditionalTextBlock') &&
       getSchemaWidthMode(targetSchema) !== 'fixed'
     ) {
       changes.push({ key: 'widthMode', value: 'fixed', schemaId: id });
@@ -336,21 +354,37 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     target.style.top = `${position.y * ZOOM}px`;
     targetSchema.position.x = position.x;
     targetSchema.position.y = position.y;
-    targetSchema.width = fmt(width);
-    targetSchema.height = fmt(height);
+    targetSchema.width = nextWidth;
+    targetSchema.height = nextHeight;
     if (targetSchema.type === 'text' || targetSchema.type === 'multiVariableText') {
-      queueLiveTextReflow(targetSchema, targetSchema.content ?? '');
+      queueLiveTextReflow({
+        schema: targetSchema,
+        measureValue: targetSchema.content ?? '',
+        commitEntries: [],
+        direct: false,
+      });
     }
   };
 
   const onResizeEnds = ({ targets }: { targets: (HTMLElement | SVGElement)[] }) => {
     setSnapFeedback(null);
-    const arg = targets.map(({ style: { width, height, top, left }, id }) => [
-      { key: 'width', value: fmt(width), schemaId: id },
-      { key: 'height', value: fmt(height), schemaId: id },
-      { key: 'position.y', value: fmt(top), schemaId: id },
-      { key: 'position.x', value: fmt(left), schemaId: id },
-    ]);
+    const arg = targets.map(({ style: { width, height, top, left }, id }) => {
+      const targetSchema = schemasList[pageCursor]?.find((schema) => schema.id === id);
+      if (targetSchema && isHeightLockedSchema(targetSchema)) {
+        return [
+          { key: 'width', value: fmt(width), schemaId: id },
+          { key: 'height', value: targetSchema.height, schemaId: id },
+          { key: 'position.y', value: targetSchema.position.y, schemaId: id },
+          { key: 'position.x', value: fmt(left), schemaId: id },
+        ];
+      }
+      return [
+        { key: 'width', value: fmt(width), schemaId: id },
+        { key: 'height', value: fmt(height), schemaId: id },
+        { key: 'position.y', value: fmt(top), schemaId: id },
+        { key: 'position.x', value: fmt(left), schemaId: id },
+      ];
+    });
     changeSchemas(flatten(arg));
   };
 
@@ -360,6 +394,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     const style = target.style;
     const oldWidth = fmt4Num(style.width);
     const oldHeight = fmt4Num(style.height);
+    const oldTop = fmt4Num(style.top);
 
     // Don't let a manual drag shrink an auto-height text field below the
     // minimum height its content requires.
@@ -372,8 +407,17 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
       }
     }
 
+    // Height-locked (table) fields are width-only: ignore vertical drags so
+    // the box height stays content-driven.
+    if (targetSchema && isHeightLockedSchema(targetSchema)) {
+      clampedHeight = oldHeight;
+    }
+
     const left = fmt4Num(style.left) + (direction[0] < 0 ? oldWidth - width : 0);
-    const top = fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - clampedHeight : 0);
+    const top =
+      targetSchema && isHeightLockedSchema(targetSchema)
+        ? oldTop
+        : fmt4Num(style.top) + (direction[1] < 0 ? oldHeight - clampedHeight : 0);
     Object.assign(style, {
       width: `${width}px`,
       height: `${clampedHeight}px`,
@@ -457,65 +501,182 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     (schema) => schema.id === activeElements[0]?.id,
   );
 
+  // Height-locked selections (text, list, tables) render width-only handles
+  // so height stays content-driven.
+  const isHeightLockedSelection = (schemasList[pageCursor] || []).some(
+    (schema) =>
+      isHeightLockedSchema(schema) && activeElements.some((element) => element.id === schema.id),
+  );
+
+  /**
+   * Resolves what to measure for a content-height reflow. A plugin mapping
+   * takes precedence so host letter fields (whose stock measurement cannot
+   * see merge-field templates) measure exactly what the canvas renders;
+   * built-in dynamic types measure themselves; anything else is static.
+   * The fork never imports app schema logic.
+   */
+  const resolveLayoutTarget = (
+    schema: SchemaForUI,
+    value: string,
+  ): LayoutTarget | null => {
+    const mapped = pluginsRegistry
+      .findByType(schema.type)
+      ?.resolveDynamicLayoutTarget?.(schema, value);
+    if (mapped) {
+      if (!isDynamicLayoutSchema(mapped.schema)) return null;
+      return mapped;
+    }
+    if (isDynamicLayoutSchema(schema)) return { schema, value };
+    return null;
+  };
+
+  type ReflowItem = {
+    /** Schema snapshot with the latest edits applied. */
+    schema: SchemaForUI;
+    /** Value string the layout function measures (content/variables JSON). */
+    measureValue: string;
+    /** Edit entries to commit alongside the reflow. */
+    commitEntries: SchemaChange[];
+    /**
+     * Commit straight through after measuring instead of previewing in the
+     * DOM first. Used for discrete passes (placement, panel edits, mount
+     * snap) so the canvas never shows positions the template doesn't hold.
+     * Canvas typing keeps the preview for live feel and flushes on blur.
+     */
+    direct: boolean;
+  };
+
   const applyLiveTextReflow = async ({
-    schema,
-    value,
+    items,
     requestId,
     commit,
   }: {
-    schema: SchemaForUI;
-    value: string;
+    items: ReflowItem[];
     requestId: number;
     commit: boolean;
   }) => {
     try {
-      const result = await getDynamicLayoutForSchema(value, {
-        schema,
-        basePdf,
-        options: { font } as { font: Font },
-        _cache: cache,
-        pageSize: currentPageSize,
-        margins: pageLayout.margins,
-      });
-      if (requestId !== reflowRequestRef.current) return;
-      const layout = Array.isArray(result) ? { heights: result } : result;
-      const measuredHeight = layout.heights.reduce((total, item) => total + item, 0);
-      const patch =
-        layout.patchSplitSchema?.({
-          schema,
-          start: 0,
-          end: layout.heights.length,
-          isSplit: false,
-          chunkHeight: measuredHeight,
-        }) ?? {};
-      const minimumHeight =
-        typeof patch.contentMinHeight === 'number'
-          ? Math.max(
-              patch.contentMinHeight,
-              typeof patch.minHeight === 'number' ? patch.minHeight : 0,
-            )
-          : undefined;
-      const changes = [
-        { key: 'content', value, schemaId: schema.id },
-        ...(typeof patch.minHeight === 'number'
-          ? [{ key: 'minHeight', value: patch.minHeight, schemaId: schema.id }]
-          : []),
-        ...(typeof patch.contentMinHeight === 'number'
-          ? [{ key: 'contentMinHeight', value: patch.contentMinHeight, schemaId: schema.id }]
-          : []),
-        ...getLiveTextReflowChanges({
-          schemas: schemasList[pageCursor] || [],
-          schema,
-          width: typeof patch.width === 'number' ? patch.width : undefined,
-          height: minimumHeight,
-          scope: getReflowScope(pageLayout),
-          maxBottom: contentBounds.bottom,
+      const measured = await Promise.all(
+        items.map(async (item) => {
+          const target = resolveLayoutTarget(item.schema, item.measureValue);
+          if (!target) return { item, layout: null };
+          const result = await getDynamicLayoutForSchema(target.value, {
+            schema: target.schema,
+            basePdf,
+            options: { font } as { font: Font },
+            _cache: cache,
+            pageSize: currentPageSize,
+            margins: pageLayout.margins,
+          });
+          const layout = Array.isArray(result) ? { heights: result } : result;
+          return { item, layout };
         }),
-      ];
+      );
+      if (requestId !== reflowRequestRef.current) return;
+      const changes: SchemaChange[] = [];
+      for (const { item, layout } of measured) {
+        const { schema, commitEntries } = item;
+        if (!layout) {
+          if (commit) changes.push(...commitEntries);
+          continue;
+        }
+        const measuredHeight = layout.heights.reduce(
+          (total, height) => total + height,
+          0,
+        );
+        const patch =
+          layout.patchSplitSchema?.({
+            schema,
+            start: 0,
+            end: layout.heights.length,
+            isSplit: false,
+            chunkHeight: measuredHeight,
+          }) ?? {};
+        const minimumHeight =
+          typeof patch.contentMinHeight === 'number'
+            ? Math.max(
+                patch.contentMinHeight,
+                typeof patch.minHeight === 'number' ? patch.minHeight : 0,
+              )
+            : undefined;
+        // Height-locked fields always track the measured content height,
+        // growing and shrinking with it. An empty field keeps its current
+        // box so it stays selectable on the canvas. Other dynamic types
+        // keep the grow-only behaviour from their layout patch.
+        const contentHeight =
+          typeof patch.contentMinHeight === 'number'
+            ? patch.contentMinHeight
+            : measuredHeight;
+        const heightForChanges = isHeightLockedSchema(schema)
+          ? contentHeight > 0
+            ? contentHeight
+            : schema.height
+          : minimumHeight;
+        // Height-locked fields own their height entirely: the layout patch
+        // minimums must not be stored, otherwise a stale pre-snap floor
+        // (minHeight) resurrects the old box at generation time while the
+        // Designer shows the snapped one. Strip them when present.
+        const lockedFloorCleanup = isHeightLockedSchema(schema)
+          ? [
+              ...('minHeight' in schema
+                ? [{ key: 'minHeight', value: undefined, schemaId: schema.id }]
+                : []),
+              ...('contentMinHeight' in schema
+                ? [{ key: 'contentMinHeight', value: undefined, schemaId: schema.id }]
+                : []),
+            ]
+          : [
+              ...(typeof patch.minHeight === 'number'
+                ? [{ key: 'minHeight', value: patch.minHeight, schemaId: schema.id }]
+                : []),
+              ...(typeof patch.contentMinHeight === 'number'
+                ? [
+                    {
+                      key: 'contentMinHeight',
+                      value: patch.contentMinHeight,
+                      schemaId: schema.id,
+                    },
+                  ]
+                : []),
+            ];
+        changes.push(
+          ...commitEntries,
+          ...lockedFloorCleanup,
+          ...getLiveTextReflowChanges({
+            schemas: schemasList[pageCursor] || [],
+            schema,
+            width: typeof patch.width === 'number' ? patch.width : undefined,
+            height: heightForChanges,
+            scope: getReflowScope(pageLayout),
+            maxBottom: contentBounds.bottom,
+          }),
+        );
+      }
       pendingTextReflowRef.current = null;
       if (commit) {
         pendingTextChangesRef.current = [];
-        changeSchemas(changes);
+        // Record post-commit fingerprints so the watcher effect converges
+        // instead of re-queueing its own commits (this also re-snaps after
+        // wholesale replacements like Reset or file load, whose stale
+        // heights no longer match).
+        for (const { item } of measured) {
+          const applied = {
+            ...(item.schema as unknown as Record<string, unknown>),
+          };
+          for (const change of changes) {
+            if (
+              change.schemaId === item.schema.id &&
+              !change.key.includes('.')
+            ) {
+              applied[change.key] = change.value;
+            }
+          }
+          reflowFingerprintsRef.current.set(
+            item.schema.id,
+            heightFingerprint(applied as unknown as SchemaForUI),
+          );
+        }
+        if (changes.length > 0) changeSchemas(changes);
         return;
       }
       pendingTextChangesRef.current = changes;
@@ -550,23 +711,68 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     const pendingReflow = pendingTextReflowRef.current;
     if (pendingReflow) {
       const requestId = ++reflowRequestRef.current;
-      void applyLiveTextReflow({ ...pendingReflow, requestId, commit: true });
+      void applyLiveTextReflow({ items: pendingReflow, requestId, commit: true });
       return;
     }
     flushPendingContentChange();
   };
-
-  const queueLiveTextReflow = (schema: SchemaForUI, value: string) => {
-    pendingTextChangesRef.current = [{ key: 'content', value, schemaId: schema.id }];
-    if (!isDynamicLayoutSchema(schema)) return;
-    pendingTextReflowRef.current = { schema, value };
+  const queueLiveTextReflow = (item: ReflowItem) => {
+    if (item.commitEntries.length > 0) {
+      pendingTextChangesRef.current = item.commitEntries;
+    }
+    if (!resolveLayoutTarget(item.schema, item.measureValue)) return;
+    const pending = pendingTextReflowRef.current ?? [];
+    const existingIndex = pending.findIndex(
+      (candidate) => candidate.schema.id === item.schema.id,
+    );
+    if (existingIndex >= 0) {
+      pending[existingIndex] = item;
+    } else {
+      pending.push(item);
+    }
+    pendingTextReflowRef.current = pending;
     const requestId = ++reflowRequestRef.current;
     if (reflowTimerRef.current) clearTimeout(reflowTimerRef.current);
     reflowTimerRef.current = setTimeout(() => {
       reflowTimerRef.current = null;
-      void applyLiveTextReflow({ schema, value, requestId, commit: false });
+      const items = pendingTextReflowRef.current ?? [];
+      // Direct passes commit straight through so the canvas never shows
+      // positions the template doesn't hold; preview passes (canvas typing)
+      // paint first and flush on blur or selection change.
+      const direct = items.length > 0 && items.every((item) => item.direct);
+      void applyLiveTextReflow({ items, requestId, commit: direct });
     }, 150);
   };
+
+  // Panel-driven edits (conditions, table settings, sidebar styling) bypass
+  // the canvas onChange below, so height-locked fields reflow here by
+  // watching their content fingerprint. The first pass also snaps stale
+  // stored heights to content on open; passes converge through the
+  // equality-guarded reflow plus post-commit fingerprints (a commit re-fires
+  // this effect, but the unchanged fingerprint skips it).
+  const queueLiveTextReflowRef = useRef(queueLiveTextReflow);
+  queueLiveTextReflowRef.current = queueLiveTextReflow;
+
+  useEffect(() => {
+    if (pendingTextReflowRef.current || reflowTimerRef.current) return;
+    // Page sizes resolve asynchronously after mount; measuring against the
+    // zero-area fallback would commit wrong heights and mark them seen.
+    if (currentPageSize.width <= 0 || currentPageSize.height <= 0) return;
+    const pageSchemas = schemasList[pageCursor] || [];
+    for (const schema of pageSchemas) {
+      if (!isHeightLockedSchema(schema)) continue;
+      const fingerprint = heightFingerprint(schema);
+      if (reflowFingerprintsRef.current.get(schema.id) === fingerprint) continue;
+      const content = (schema as unknown as { content?: unknown }).content;
+      queueLiveTextReflowRef.current({
+        schema,
+        measureValue: typeof content === 'string' ? content : '',
+        commitEntries: [],
+        direct: true,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemasList, pageCursor, currentPageSize]);
 
   const setGuides = (axis: 'horizontalGuides' | 'verticalGuides', guides: number[]) =>
     onChangePageLayout(pageCursor, (layout) => ({
@@ -765,6 +971,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                     }
                     keepRatio={isPressShiftKey}
                     rotatable={rotatable}
+                    renderDirections={isHeightLockedSelection ? ['e', 'w'] : undefined}
                     onDrag={onDrag}
                     onDragEnd={onDragEnd}
                     onDragGroupEnd={onDragEnds}
@@ -820,14 +1027,59 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
                       // Use type assertion to safely handle the argument
                       type ChangeArg = { key: string; value: unknown };
                       const args = Array.isArray(arg) ? (arg as ChangeArg[]) : [arg as ChangeArg];
-                      const contentChange = args.find(({ key }) => key === 'content');
-                      if (contentChange && typeof contentChange.value === 'string') {
-                        queueLiveTextReflow(schema, contentChange.value);
+                      const entries = args.map(({ key, value }) => ({
+                        key,
+                        value,
+                        schemaId: schema.id,
+                      }));
+                      // Letter text edits commit the `text` template rather
+                      // than `content` (variables JSON); both drive height.
+                      const reflowEntry =
+                        entries.find(
+                          (entry) =>
+                            entry.key === 'content' && typeof entry.value === 'string',
+                        ) ??
+                        (schema.type === 'multiVariableText'
+                          ? entries.find(
+                              (entry) =>
+                                entry.key === 'text' && typeof entry.value === 'string',
+                            )
+                          : undefined);
+                      if (reflowEntry) {
+                        const contentEntries = entries.filter(
+                          (entry) =>
+                            entry.key === 'content' ||
+                            entry.key === 'text' ||
+                            entry.key === 'variables',
+                        );
+                        const snapshot = {
+                          ...schema,
+                          [reflowEntry.key]: reflowEntry.value,
+                        } as SchemaForUI;
+                        const content = (
+                          schema as unknown as { content?: unknown }
+                        ).content;
+                        queueLiveTextReflow({
+                          schema: snapshot,
+                          measureValue:
+                            reflowEntry.key === 'content'
+                              ? (reflowEntry.value as string)
+                              : typeof content === 'string'
+                                ? content
+                                : '',
+                          commitEntries: contentEntries,
+                          direct: false,
+                        });
+                        const rest = entries.filter(
+                          (entry) =>
+                            entry.key !== 'content' &&
+                            entry.key !== 'text' &&
+                            entry.key !== 'variables',
+                        );
+                        if (rest.length > 0) changeSchemas(rest);
+                        return;
                       }
-                      const nonContentChanges = args
-                        .filter(({ key }) => key !== 'content')
-                        .map(({ key, value }) => ({ key, value, schemaId: schema.id }));
-                      if (nonContentChanges.length) changeSchemas(nonContentChanges);
+                      if (entries.length > 0) changeSchemas(entries);
                     }
                   : undefined
               }

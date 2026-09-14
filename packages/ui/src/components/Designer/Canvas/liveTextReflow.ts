@@ -3,6 +3,44 @@ import { getReflowFollowers, type ReflowScope, type SchemaForUI } from '@pdfme/c
 export type SchemaChange = { key: string; value: unknown; schemaId: string };
 
 /**
+ * Field types whose Designer height is always driven by content. Everything
+ * else (image, shapes, qrcode, signature, svg) stays freely resizable.
+ * 'conditionalTextBlock'/'blockTable' are app-specific letter fields rendered
+ * through the text/table plugins; kept as literals because the fork cannot
+ * import app schema constants.
+ */
+export const isHeightLockedSchema = (schema: Pick<SchemaForUI, 'type'>): boolean =>
+  schema.type === 'text' ||
+  schema.type === 'multiVariableText' ||
+  schema.type === 'conditionalTextBlock' ||
+  schema.type === 'list' ||
+  schema.type === 'table' ||
+  schema.type === 'blockTable';
+
+const FINGERPRINT_IGNORED_KEYS = new Set([
+  'id',
+  'position',
+  'dynamicFontSize',
+  '__splitRange',
+  '__isSplit',
+]);
+
+/**
+ * Fingerprint of everything that can change a height-locked field's content
+ * height. Geometry and volatile generation outputs are excluded. Height
+ * itself is included so wholesale template replacements (Reset, file load)
+ * re-snap; reflow commits update the map to post-commit values so passes
+ * converge instead of re-triggering themselves.
+ */
+export const heightFingerprint = (schema: SchemaForUI): string => {
+  const rest = { ...(schema as unknown as Record<string, unknown>) };
+  for (const key of FINGERPRINT_IGNORED_KEYS) {
+    delete rest[key];
+  }
+  return JSON.stringify(rest, Object.keys(rest).sort());
+};
+
+/**
  * Live canvas reflow for the field being edited.
  *
  * The edited field always resizes, including contracting back towards its
