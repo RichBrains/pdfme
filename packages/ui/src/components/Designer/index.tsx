@@ -408,7 +408,14 @@ const TemplateEditor = ({
     // free-space search. The page content bounds are also the placement area,
     // so a fill field uses the whole available row.
     const sWithTextProps = s as unknown as { widthMode?: unknown };
-    if (s.type === 'text' && sWithTextProps.widthMode === 'fill') {
+    if (
+      (s.type === 'text' ||
+        s.type === 'multiVariableText' ||
+        // App-specific letter field rendered through the text plugin; kept
+        // as a literal because the fork cannot import app schema constants.
+        s.type === 'conditionalTextBlock') &&
+      sWithTextProps.widthMode === 'fill'
+    ) {
       s.width = contentBounds.width;
     }
 
