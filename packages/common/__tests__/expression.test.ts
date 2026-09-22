@@ -581,7 +581,7 @@ describe('replacePlaceholders memory safety', () => {
 
     // 30 unique payloads × ~500 KB each. If the fix regresses, at least
     // 15 MB of string data will be pinned as parseDataCache keys. The
-    // content MUST contain a placeholder (`{blob}`) — otherwise
+    // content MUST contain a placeholder (`{blob}`) - otherwise
     // replacePlaceholders short-circuits and parseData is never called.
     const PAYLOAD_COUNT = 30;
     const PAYLOAD_SIZE = 500_000;

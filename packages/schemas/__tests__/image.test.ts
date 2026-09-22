@@ -45,7 +45,7 @@ describe('image plugin memory-safety', () => {
     // Regression guard: the cache key MUST be a fingerprint, not the raw
     // input. Before the fix, the key was `${schema.type}${value}` and its
     // byte length matched the input byte length. A tight bound of 100
-    // chars catches any regression back to that behaviour — the current
+    // chars catches any regression back to that behaviour - the current
     // fingerprint format (`${type}:${len}:${fnv1a-hex}`) stays well under
     // 40 even for huge inputs.
     expect(keys[0].length).toBeLessThan(100);
@@ -53,7 +53,7 @@ describe('image plugin memory-safety', () => {
     // can't collide on the same shared cache Map.
     expect(keys[0].startsWith('image')).toBe(true);
     // Same input hitting the cache a second time must be a cache hit, not
-    // a new entry — proves the fingerprint is deterministic.
+    // a new entry - proves the fingerprint is deterministic.
     await image.pdf(arg);
     expect([...(_cache.keys() as Iterable<string>)].length).toBe(1);
   });
@@ -66,7 +66,7 @@ describe('image plugin memory-safety', () => {
     const pngA =
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1J' +
       'REFUGFdj+P///38ACfsD/QVDRcoAAAAASUVORK5CYII=';
-    // Same size/header/trailer shape as pngA but different middle bytes —
+    // Same size/header/trailer shape as pngA but different middle bytes -
     // the fingerprint must still distinguish them. Because the key is a
     // hash over every byte, any differing byte flips the hash with
     // overwhelming probability.

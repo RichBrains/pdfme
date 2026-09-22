@@ -454,7 +454,7 @@ export default function JsxPlayground() {
         projectRef.current?.title ?? `JSX - ${sourceTitle}`,
       );
       if (!savedProject) return;
-      toast.success(`Saved "${savedProject.title}" — opening Designer`);
+      toast.success(`Saved "${savedProject.title}" - opening Designer`);
       navigate(`/designer?project=${encodeURIComponent(savedProject.id)}`);
     } catch (err) {
       toast.error(getErrorMessage(err));

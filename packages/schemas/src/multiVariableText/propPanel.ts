@@ -15,7 +15,7 @@ const mapDynamicVariables = (props: PropPanelWidgetProps) => {
       variables = parsed as Record<string, string>;
     }
   } catch {
-    // content is not valid JSON (e.g. a plain string value) — start fresh
+    // content is not valid JSON (e.g. a plain string value) - start fresh
   }
   const variablesChanged = updateVariablesFromText(text, variables);
   const varNames = Object.keys(variables);

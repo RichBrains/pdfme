@@ -95,7 +95,7 @@ const formUiRender = async (arg: UIRenderProps<MultiVariableTextSchema>) => {
         variables = parsed as Record<string, string>;
       }
     } catch {
-      // value is not valid JSON — use empty variables
+      // value is not valid JSON - use empty variables
     }
   }
   const substitutedText = substituteVariables(rawText, variables);

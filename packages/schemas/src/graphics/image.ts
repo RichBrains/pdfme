@@ -17,7 +17,7 @@ import { getImageDimension } from './imagehelper.js';
 /**
  * Build a short fingerprint for a potentially-large base64 image string.
  * Previously `${schema.type}${input}` was used, pinning multi-MB base64
- * strings in the cache Map forever — every unique image input created a
+ * strings in the cache Map forever - every unique image input created a
  * permanent Map key whose byte length matched the image itself.
  *
  * The fingerprint is an FNV-1a 32-bit hash over the full input, combined

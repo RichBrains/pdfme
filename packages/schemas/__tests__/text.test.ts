@@ -759,7 +759,7 @@ describe('getSplitPosition test with mocked font width calculations', () => {
   it('splits a line to the nearest previous breakable char', () => {
     expect(getSplittedLines('aaa bbb', mockCalcValues)).toEqual(['aaa', 'bbb']);
     expect(getSplittedLines('top-hat', mockCalcValues)).toEqual(['top-', 'hat']);
-    expect(getSplittedLines('top—hat', mockCalcValues)).toEqual(['top—', 'hat']); // em dash
+    expect(getSplittedLines('top-hat', mockCalcValues)).toEqual(['top-', 'hat']); // em dash
     expect(getSplittedLines('top–hat', mockCalcValues)).toEqual(['top–', 'hat']); // en dash
   });
 

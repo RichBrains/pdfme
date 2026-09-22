@@ -12,7 +12,7 @@
       {
         "name": "text_1",
         "type": "text",
-        "content": "Research brief — {currentPage} / {totalPages}",
+        "content": "Research brief - {currentPage} / {totalPages}",
         "position": {
           "x": 20,
           "y": 279
@@ -83,7 +83,7 @@
       {
         "name": "text_3",
         "type": "text",
-        "content": "Abstract — This preset mirrors a paper-style document and intentionally omits height on most Text nodes. JSX measures each block while rendering, and the parent Box grows around the abstract without manual geometry.",
+        "content": "Abstract - This preset mirrors a paper-style document and intentionally omits height on most Text nodes. JSX measures each block while rendering, and the parent Box grows around the abstract without manual geometry.",
         "position": {
           "x": 24,
           "y": 36.0443808

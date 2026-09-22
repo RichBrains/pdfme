@@ -1,6 +1,6 @@
 ## @pdfme/converter
 
-This library provides utility functions for converting PDFs to other formats or converting data—such as Markdown—into PDF(WIP).
+This library provides utility functions for converting PDFs to other formats or converting data-such as Markdown-into PDF(WIP).
 
 ## Markdown to pdfme template
 

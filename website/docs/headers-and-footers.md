@@ -2,7 +2,7 @@
 
 You can place elements like headers and footers that are displayed on every page and are not affected by page breaks.
 
-Specifically, in cases where page breaks occur—such as with [dynamic tables](/docs/tables)—you can use this feature to place elements that are not pushed down by data.
+Specifically, in cases where page breaks occur-such as with [dynamic tables](/docs/tables)-you can use this feature to place elements that are not pushed down by data.
 
 For simplicity, we've described these as headers and footers. In reality, by adding a property called `staticSchema` to `basePdf`, you can place elements that are displayed on every page and are not affected by page breaks.
 
