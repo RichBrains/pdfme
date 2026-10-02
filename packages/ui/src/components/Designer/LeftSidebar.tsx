@@ -10,6 +10,7 @@ import { OptionsContext, PluginsRegistry } from '../../contexts.js';
 import PluginIcon from './PluginIcon.js';
 
 const Draggable = (props: {
+  label: string;
   plugin: Plugin<Schema>;
   scale: number;
   basePdf: BasePdf;
@@ -23,7 +24,8 @@ const Draggable = (props: {
     const fontName = getFallbackFontName(options.font);
     setFontNameRecursively(defaultSchema, fontName);
   }
-  const draggable = useDraggable({ id: defaultSchema.type, data: defaultSchema });
+  // Keyed by palette label: several entries may share a schema type (presets).
+  const draggable = useDraggable({ id: props.label, data: defaultSchema });
   const { listeners, setNodeRef, attributes, transform, isDragging } = draggable;
   const style = { transform: CSS.Translate.toString(transform) };
 
@@ -102,7 +104,7 @@ const LeftSidebar = ({
         const pluginType = plugin.propPanel.defaultSchema.type;
 
         return (
-          <Draggable key={label} scale={scale} basePdf={basePdf} plugin={plugin}>
+          <Draggable key={label} label={label} scale={scale} basePdf={basePdf} plugin={plugin}>
             <Button
               className={DESIGNER_CLASSNAME + 'plugin-' + pluginType}
               onMouseDown={() => setIsDragging(true)}

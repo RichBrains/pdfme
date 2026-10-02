@@ -418,6 +418,9 @@ const TemplateEditor = ({
     ) {
       s.width = contentBounds.width;
     }
+    // A preset wider than this page's content area (e.g. after a margin
+    // change) is narrowed to fit instead of silently not being added.
+    s.width = Math.min(s.width, contentBounds.width);
 
     const position = findFreeSchemaPosition({
       schema: s,
