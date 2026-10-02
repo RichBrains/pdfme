@@ -197,6 +197,13 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const reflowFingerprintsRef = useRef(new Map<string, string>());
   const pendingTextChangesRef = useRef<SchemaChange[]>([]);
   const pendingTextReflowRef = useRef<ReflowItem[] | null>(null);
+  // Reflow commits land after an async measurement (plus a debounce), by
+  // which time the render that queued them may be stale. `changeSchemas`
+  // rebuilds the page from the schemas list it closed over, so committing
+  // through a stale one silently reverts every edit made in between (e.g. a
+  // table's Show Head toggle). Always commit through the latest render.
+  const latestRef = useRef({ changeSchemas, schemasList, pageCursor });
+  latestRef.current = { changeSchemas, schemasList, pageCursor };
   // Last live-resize direction, read at resize-end to decide whether the
   // user manually changed a text field's width (vs. only its height).
   const lastResizeDirectionRef = useRef<number[] | null>(null);
@@ -573,6 +580,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
         }),
       );
       if (requestId !== reflowRequestRef.current) return;
+      const latest = latestRef.current;
+      const latestSchemas = latest.schemasList[latest.pageCursor] || [];
       const changes: SchemaChange[] = [];
       for (const { item, layout } of measured) {
         const { schema, commitEntries } = item;
@@ -643,8 +652,10 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
           ...commitEntries,
           ...lockedFloorCleanup,
           ...getLiveTextReflowChanges({
-            schemas: schemasList[pageCursor] || [],
-            schema,
+            schemas: latestSchemas,
+            // Diff against the field's current geometry, not the queued
+            // snapshot, so follower deltas match what is actually committed.
+            schema: latestSchemas.find((candidate) => candidate.id === schema.id) ?? schema,
             width: typeof patch.width === 'number' ? patch.width : undefined,
             height: heightForChanges,
             scope: getReflowScope(pageLayout),
@@ -676,7 +687,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
             heightFingerprint(applied as unknown as SchemaForUI),
           );
         }
-        if (changes.length > 0) changeSchemas(changes);
+        if (changes.length > 0) latest.changeSchemas(changes);
         return;
       }
       pendingTextChangesRef.current = changes;
@@ -700,7 +711,7 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
   const flushPendingContentChange = () => {
     const changes = pendingTextChangesRef.current;
     pendingTextChangesRef.current = [];
-    if (changes.length) changeSchemas(changes);
+    if (changes.length) latestRef.current.changeSchemas(changes);
   };
 
   const flushPendingTextChanges = () => {

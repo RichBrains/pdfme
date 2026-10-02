@@ -202,6 +202,18 @@ const Renderer = (props: RendererProps) => {
     element.innerHTML = '';
     element.dataset.pdfmeRenderReady = 'false';
     const render = renderArgs.plugin.ui;
+    // Plugin renders are async (tables await layout, then sync their height).
+    // A render superseded before it finished must not commit its stale
+    // result, and every commit goes through the latest onChange: the captured
+    // one closes over a stale schemas list and would revert every edit made
+    // since this render started (e.g. a table's Show Head toggle).
+    let settled = false;
+    const onChange = renderArgs.onChange
+      ? (...changeArgs: Parameters<NonNullable<RendererProps['onChange']>>) => {
+          if (cancelled && !settled) return;
+          renderArgsRef.current.onChange?.(...changeArgs);
+        }
+      : undefined;
 
     void Promise.resolve(
       render({
@@ -210,7 +222,7 @@ const Renderer = (props: RendererProps) => {
         basePdf: renderArgs.basePdf,
         rootElement: element,
         mode: renderArgs.mode,
-        onChange: renderArgs.onChange,
+        onChange,
         stopEditing: renderArgs.stopEditing,
         tabIndex: renderArgs.tabIndex,
         placeholder: renderArgs.placeholder,
@@ -221,6 +233,7 @@ const Renderer = (props: RendererProps) => {
         _cache: renderArgs._cache,
       }),
     ).finally(() => {
+      settled = true;
       if (!cancelled) {
         element.dataset.pdfmeRenderReady = 'true';
       }

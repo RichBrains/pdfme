@@ -17,6 +17,21 @@ const schema = (id: string, y: number, height: number): SchemaForUI => ({
 });
 
 describe('getLiveTextReflowChanges', () => {
+  it('ignores float drift so reflow and plugin height sync converge', () => {
+    // Table rows summed by the reflow vs the table's own height differ only
+    // in the last float digit; committing that re-triggers both forever.
+    const active = schema('active', 10, 52.932);
+    const follower = schema('follower', 70, 10);
+    expect(
+      getLiveTextReflowChanges({
+        schemas: [active, follower],
+        schema: active,
+        width: 20.0000000000001,
+        height: 52.93200000000001,
+      }),
+    ).toEqual([]);
+  });
+
   it('updates only the active text box for default auto-expand', () => {
     const active = schema('active', 10, 10);
     expect(

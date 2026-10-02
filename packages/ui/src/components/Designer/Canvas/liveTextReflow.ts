@@ -40,6 +40,12 @@ export const heightFingerprint = (schema: SchemaForUI): string => {
   return JSON.stringify(rest, Object.keys(rest).sort());
 };
 
+/** Size tolerance (mm) below which two measurements are the same size. */
+const SIZE_EPSILON = 0.001;
+
+const isSameSize = (next: number | undefined, current: number): boolean =>
+  next === undefined || Math.abs(next - current) < SIZE_EPSILON;
+
 /**
  * Live canvas reflow for the field being edited.
  *
@@ -64,8 +70,11 @@ export const getLiveTextReflowChanges = ({
   /** Lower bound (mm) followers must not be pushed past, e.g. the content area. */
   maxBottom?: number;
 }): SchemaChange[] => {
-  const nextWidth = width ?? schema.width;
-  const nextHeight = height ?? schema.height;
+  // Sub-micron float drift between measurements (e.g. summed row heights vs
+  // a table's own height) is not a size change; treating it as one makes
+  // the reflow and the plugin's own height sync re-commit each other forever.
+  const nextWidth = isSameSize(width, schema.width) ? schema.width : (width as number);
+  const nextHeight = isSameSize(height, schema.height) ? schema.height : (height as number);
   const changes: SchemaChange[] = [];
   if (nextWidth !== schema.width)
     changes.push({ key: 'width', value: nextWidth, schemaId: schema.id });

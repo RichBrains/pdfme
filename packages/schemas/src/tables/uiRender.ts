@@ -460,7 +460,10 @@ export const uiRender = async (arg: UIRenderProps<TableSchema>) => {
   }
 
   const tableHeight = showHead ? table.getHeight() : table.getBodyHeight();
-  if (schema.height !== tableHeight && onChange) {
+  // Tolerate float drift: the Designer's content reflow measures the same
+  // height by summing rows, and an exact compare makes the two re-commit
+  // each other in an endless loop.
+  if (Math.abs(schema.height - tableHeight) >= 0.001 && onChange) {
     onChange({ key: 'height', value: tableHeight });
   }
 };
