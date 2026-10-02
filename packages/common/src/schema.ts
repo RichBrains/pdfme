@@ -286,6 +286,19 @@ export const Font = z.record(
     data: z.union([z.string(), ArrayBufferSchema, Uint8ArraySchema]),
     fallback: z.boolean().optional(),
     subset: z.boolean().optional(),
+    /**
+     * Real bold/italic faces of this family, as names of other entries in the
+     * same font map. Styled text uses them instead of synthetic emboldening.
+     */
+    variants: z
+      .object({
+        bold: z.string().optional(),
+        italic: z.string().optional(),
+        boldItalic: z.string().optional(),
+      })
+      .optional(),
+    /** Variant faces are hidden from font pickers; they are chosen via `variants`. */
+    hidden: z.boolean().optional(),
   }),
 );
 

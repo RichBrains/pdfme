@@ -1,3 +1,4 @@
+import { getRichLayout, isRichTextSchema, renderRichLayoutDom } from '../richText/index.js';
 import type * as CSS from 'csstype';
 import type { Font as FontKitFont } from 'fontkit';
 import {
@@ -90,6 +91,24 @@ export const uiRender = async (arg: UIRenderProps<TextSchema>) => {
     options,
     _cache,
   } = arg;
+  if (isRichTextSchema(schema, value)) {
+    // Rich documents render from the shared layout (WYSIWYG with the PDF).
+    // In-place editing is provided by the host's rich-text editor plugin.
+    const layout = await getRichLayout({
+      value,
+      schema,
+      widthMm: getBoxContentArea(schema).width,
+      font: options?.font || getDefaultFont(),
+      _cache,
+    });
+    renderRichLayoutDom({
+      rootElement: arg.rootElement,
+      layout,
+      schema,
+      range: getTextLineRange(schema),
+    });
+    return;
+  }
   const hasInlineMarkdownFormat = schema.textFormat === TEXT_FORMAT_INLINE_MARKDOWN;
   const enableInlineMarkdown = isInlineMarkdownTextSchema(schema);
   const isReadOnlySplitInlineMarkdownFormChunk =

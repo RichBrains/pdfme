@@ -1,3 +1,4 @@
+import { getRichLayout, isRichTextSchema } from '../richText/index.js';
 import { getDefaultFont, mm2pt, pt2mm, type DynamicLayoutRange, type Font } from '@pdfme/common';
 import type { Font as FontKitFont } from 'fontkit';
 import { DEFAULT_CHARACTER_SPACING, DEFAULT_FONT_SIZE, DEFAULT_LINE_HEIGHT } from './constants.js';
@@ -77,6 +78,20 @@ export const measureTextLines = async ({
   const lineHeight = schema.lineHeight ?? DEFAULT_LINE_HEIGHT;
   const characterSpacing = schema.characterSpacing ?? DEFAULT_CHARACTER_SPACING;
   const boxWidthInPt = mm2pt(getBoxContentArea(schema).width);
+
+  if (isRichTextSchema(schema, value)) {
+    const layout = await getRichLayout({
+      value,
+      schema,
+      widthMm: getBoxContentArea(schema).width,
+      font,
+      _cache,
+    });
+    return {
+      lines: layout.lines.map((line) => line.items.map((item) => item.text).join('')),
+      lineHeights: layout.lines.map((line) => line.height),
+    };
+  }
 
   if (isInlineMarkdownTextSchema(schema)) {
     const richTextRuns = parseInlineMarkdown(value);
@@ -162,6 +177,19 @@ export const measureTextWidth = async ({
   font = getDefaultFont(),
   _cache = new Map<string | number, unknown>(),
 }: MeasureTextHeightArgs): Promise<number> => {
+  if (isRichTextSchema(schema, value)) {
+    // Natural width: lay out without wrapping and take the widest line.
+    const layout = await getRichLayout({ value, schema, widthMm: 10000, font, _cache });
+    // Alignment offsets are meaningless at this width, so measure each
+    // line's extent from its first to its last piece.
+    const widestPt = layout.lines.reduce((widest, line) => {
+      if (line.items.length === 0) return widest;
+      const start = Math.min(...line.items.map((item) => item.x));
+      const end = Math.max(...line.items.map((item) => item.x + item.width));
+      return Math.max(widest, end - start);
+    }, 0);
+    return pt2mm(widestPt) + getBoxHorizontalInset(schema);
+  }
   const fontSize = schema.fontSize ?? DEFAULT_FONT_SIZE;
   const characterSpacing = schema.characterSpacing ?? DEFAULT_CHARACTER_SPACING;
   const fontKitFont = await getFontKitFont(

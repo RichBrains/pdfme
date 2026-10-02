@@ -59,6 +59,7 @@ import type { PageOrientation, PageSize, PageSizePreset } from './pageSize.js';
 import {
   cloneDeep,
   getFallbackFontName,
+  getSelectableFontNames,
   getDefaultFont,
   getB64BasePdf,
   b64toUint8Array,
@@ -128,6 +129,7 @@ export {
   DEFAULT_FONT_NAME,
   cloneDeep,
   getFallbackFontName,
+  getSelectableFontNames,
   getDefaultFont,
   getB64BasePdf,
   b64toUint8Array,
@@ -237,3 +239,5 @@ export type {
   PageSize,
   PageSizePreset,
 };
+
+export * from './richDoc.js';

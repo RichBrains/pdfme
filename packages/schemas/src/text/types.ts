@@ -5,7 +5,7 @@ import type { BoxDimension } from '../box.js';
 export type ALIGNMENT = 'left' | 'center' | 'right' | 'justify';
 export type VERTICAL_ALIGNMENT = 'top' | 'middle' | 'bottom';
 export type DYNAMIC_FONT_SIZE_FIT = 'horizontal' | 'vertical';
-export type TEXT_FORMAT = 'plain' | 'inline-markdown';
+export type TEXT_FORMAT = 'plain' | 'inline-markdown' | 'rich';
 export type TEXT_OVERFLOW = 'visible' | 'expand';
 export type FONT_VARIANT_FALLBACK = 'synthetic' | 'plain' | 'error';
 export type PARAGRAPH_INDENT_MODE = 'none' | 'firstLine' | 'hanging';

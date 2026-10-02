@@ -1,6 +1,6 @@
 import type { PropPanel } from '@pdfme/common';
 import type { TableSchema } from './types.js';
-import { getFallbackFontName, DEFAULT_FONT_NAME } from '@pdfme/common';
+import { getFallbackFontName, getSelectableFontNames, DEFAULT_FONT_NAME } from '@pdfme/common';
 import {
   getDefaultCellStyles,
   getCellPropPanelSchema,
@@ -15,7 +15,7 @@ export const propPanel: PropPanel<TableSchema> = {
     const head = tableSchema.head || [];
     const showHead = tableSchema.showHead || false;
     const font = options.font || { [DEFAULT_FONT_NAME]: { data: '', fallback: true } };
-    const fontNames = Object.keys(font);
+    const fontNames = getSelectableFontNames(font);
     const fallbackFontName = getFallbackFontName(font);
     return {
       showHead: {

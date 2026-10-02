@@ -53,6 +53,10 @@ export const getFallbackFontName = (font: Font) => {
   return fallbackFontName;
 };
 
+/** Font names offered in pickers: every registered font except hidden variant faces. */
+export const getSelectableFontNames = (font: Font): string[] =>
+  Object.keys(font).filter((fontName) => !font[fontName]?.hidden);
+
 export const getDefaultFont = (): Font => ({
   [DEFAULT_FONT_NAME]: { data: b64toUint8Array(DEFAULT_FONT_VALUE), fallback: true },
 });

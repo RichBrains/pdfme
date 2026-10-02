@@ -39,6 +39,7 @@ import { stripInlineMarkdown } from './inlineMarkdown.js';
 import { applyTextLineRange } from './measure.js';
 import { calculateDynamicRichTextFontSize, isInlineMarkdownTextSchema } from './richText.js';
 import { renderInlineMarkdownText } from './richTextPdfRender.js';
+import { getRichLayout, isRichTextSchema, renderRichLayout } from '../richText/index.js';
 import { shouldUseDynamicFontSize } from './overflow.js';
 import { convertForPdfLayoutProps, rotatePoint, hex2PrintingColor } from '../utils.js';
 import { getTextLineRange } from '../splitRange.js';
@@ -146,6 +147,35 @@ export const pdfRender = async (arg: PDFRenderProps<TextSchema>) => {
 
   drawTextBoxDecoration({ page, schema, colorType, x, y, width, height, rotate, pivotPoint });
   if (!value) return;
+
+  if (isRichTextSchema(schema, value)) {
+    const richContentArea = getBoxContentArea(schema);
+    const layout = await getRichLayout({
+      value,
+      schema,
+      widthMm: richContentArea.width,
+      font,
+      _cache,
+    });
+    await renderRichLayout({
+      layout,
+      range: getTextLineRange(schema),
+      pdfDoc,
+      page,
+      pdfLib,
+      embedPdfFont: (fontName) => embedAndGetFont({ pdfDoc, font, fontName, _cache }),
+      x: x + mm2pt(richContentArea.leftInset),
+      y: y + mm2pt(richContentArea.bottomInset),
+      width: mm2pt(richContentArea.width),
+      height: mm2pt(richContentArea.height),
+      verticalAlignment: schema.verticalAlignment,
+      rotate,
+      pivotPoint,
+      colorType,
+      opacity,
+    });
+    return;
+  }
 
   const fontName = schema.fontName ? schema.fontName : getFallbackFontName(font);
   const enableInlineMarkdown = isInlineMarkdownTextSchema(schema);

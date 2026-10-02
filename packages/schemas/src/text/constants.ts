@@ -24,6 +24,8 @@ export const DEFAULT_FONT_COLOR = '#000000';
 export const PLACEHOLDER_FONT_COLOR = '#A0A0A0';
 export const TEXT_FORMAT_PLAIN = 'plain' as const satisfies TEXT_FORMAT;
 export const TEXT_FORMAT_INLINE_MARKDOWN = 'inline-markdown' as const satisfies TEXT_FORMAT;
+/** Content is a serialized rich document (see `@pdfme/common` richDoc). */
+export const TEXT_FORMAT_RICH = 'rich' as const satisfies TEXT_FORMAT;
 export const DEFAULT_TEXT_FORMAT = TEXT_FORMAT_PLAIN;
 export const TEXT_OVERFLOW_VISIBLE = 'visible' as const satisfies TEXT_OVERFLOW;
 export const TEXT_OVERFLOW_EXPAND = 'expand' as const satisfies TEXT_OVERFLOW;

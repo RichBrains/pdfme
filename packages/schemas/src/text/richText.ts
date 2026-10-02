@@ -70,7 +70,15 @@ export const resolveFontVariant = (
   font: Font,
 ): FontVariantResolution => {
   const baseFontName = getBaseFontName(schema, font);
-  const variants = schema.fontVariants ?? {};
+  // Field-level variants win; otherwise use the family's registered faces.
+  const familyVariants = font[baseFontName]?.variants ?? {};
+  const fieldVariants = schema.fontVariants ?? {};
+  const variants = {
+    bold: fieldVariants.bold || familyVariants.bold,
+    italic: fieldVariants.italic || familyVariants.italic,
+    boldItalic: fieldVariants.boldItalic || familyVariants.boldItalic,
+    code: fieldVariants.code,
+  };
   const fallback = schema.fontVariantFallback ?? DEFAULT_FONT_VARIANT_FALLBACK;
 
   let fontName = baseFontName;

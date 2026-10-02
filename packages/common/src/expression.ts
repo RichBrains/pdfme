@@ -1,6 +1,12 @@
 import * as acorn from 'acorn';
 import type { Node as AcornNode, Identifier, Property } from 'estree';
 import type { SchemaPageArray } from './types.js';
+import {
+  isRichDocValue,
+  mapRichDocValueText,
+  parseRichDoc,
+  richDocToPlainText,
+} from './richDoc.js';
 
 const expressionCache = new Map<string, (context: Record<string, unknown>) => unknown>();
 
@@ -432,6 +438,10 @@ const evaluatePlaceholders = (arg: {
   return resultContent;
 };
 
+/** Other fields referenced by name expose their visible text, never rich JSON. */
+const plainSchemaContent = (content: string) =>
+  isRichDocValue(content) ? richDocToPlainText(parseRichDoc(content)) : content;
+
 export const replacePlaceholders = (arg: {
   content: string;
   variables: Record<string, unknown>;
@@ -448,7 +458,12 @@ export const replacePlaceholders = (arg: {
 
   const data = {
     ...Object.fromEntries(
-      schemas.flat().map((schema) => [schema.name, schema.readOnly ? schema.content || '' : '']),
+      schemas
+        .flat()
+        .map((schema) => [
+          schema.name,
+          schema.readOnly ? plainSchemaContent(schema.content || '') : '',
+        ]),
     ),
     ...variables,
   };
@@ -462,9 +477,23 @@ export const replacePlaceholders = (arg: {
 
   Object.entries(context).forEach(([key, value]) => {
     if (typeof value === 'string' && value.includes('{') && value.includes('}')) {
-      context[key] = evaluatePlaceholders({ content: value, context });
+      try {
+        context[key] = evaluatePlaceholders({ content: value, context });
+      } catch {
+        // Merged data that merely contains braces (e.g. "a}{b") is literal
+        // text, not a template; keep it instead of failing the document.
+      }
     }
   });
+
+  // Rich documents are JSON: evaluate placeholders inside each run's text only.
+  if (isRichDocValue(content)) {
+    return mapRichDocValueText(content, (text) =>
+      text.includes('{') && text.includes('}')
+        ? evaluatePlaceholders({ content: text, context })
+        : text,
+    );
+  }
 
   return evaluatePlaceholders({ content, context });
 };

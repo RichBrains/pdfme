@@ -4,6 +4,7 @@ import {
   PropPanelWidgetProps,
   PropPanelSchema,
   getFallbackFontName,
+  getSelectableFontNames,
 } from '@pdfme/common';
 import type { TextSchema } from './types.js';
 import {
@@ -96,7 +97,7 @@ const UseInlineMarkdown = (props: PropPanelWidgetProps) => {
 export const propPanel: PropPanel<TextSchema> = {
   schema: ({ options, activeSchema, schemas, i18n, basePdf }) => {
     const font = options.font || { [DEFAULT_FONT_NAME]: { data: '', fallback: true } };
-    const fontNames = Object.keys(font);
+    const fontNames = getSelectableFontNames(font);
     const fallbackFontName = getFallbackFontName(font);
 
     const activeTextSchema = activeSchema as unknown as TextSchema;

@@ -39,7 +39,13 @@ import localeZh from 'air-datepicker/locale/zh';
 import * as dateFns from 'date-fns/locale';
 import { format } from 'date-fns';
 
-import { Plugin, getFallbackFontName, DEFAULT_FONT_NAME, PropPanelSchema } from '@pdfme/common';
+import {
+  Plugin,
+  getFallbackFontName,
+  getSelectableFontNames,
+  DEFAULT_FONT_NAME,
+  PropPanelSchema,
+} from '@pdfme/common';
 import text from '../text/index.js';
 import { DEFAULT_OPACITY, HEX_COLOR_PATTERN } from '../constants.js';
 import { mapVerticalAlignToFlex } from '../text/uiRender.js';
@@ -403,7 +409,7 @@ export const getPlugin = ({ type, icon }: { type: PickerType; icon: string }) =>
     propPanel: {
       schema: ({ options, i18n, activeSchema, changeSchemas }) => {
         const font = options.font || { [DEFAULT_FONT_NAME]: { data: '', fallback: true } };
-        const fontNames = Object.keys(font);
+        const fontNames = getSelectableFontNames(font);
         const fallbackFontName = getFallbackFontName(font);
         const activeDateSchema = activeSchema as { locale?: string; format?: string };
 
