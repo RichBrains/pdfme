@@ -203,11 +203,7 @@ type ContextMenuProps = {
 };
 const ContextMenu = ({ items, style }: ContextMenuProps) => (
   <Dropdown menu={{ items }} placement="top" arrow trigger={['click']}>
-    <Button
-      className={UI_CLASSNAME + 'context-menu'}
-      type="text"
-      style={getControlButtonStyle()}
-    >
+    <Button className={UI_CLASSNAME + 'context-menu'} type="text" style={getControlButtonStyle()}>
       <Ellipsis size={16} color={style.textStyle.color} />
     </Button>
   </Dropdown>
@@ -249,13 +245,16 @@ const CtlBar = (props: CtlBarProps) => {
   if (addPageAfter) {
     contextMenuItems.push({
       key: '1',
-      label: <div onClick={addPageAfter}>{i18n('addPageAfter')}</div>,
+      // Item-level handler so the whole menu row is clickable, not just the text.
+      label: i18n('addPageAfter'),
+      onClick: addPageAfter,
     });
   }
   if (removePage && pageNum > 1 && pageCursor !== 0) {
     contextMenuItems.push({
       key: '2',
-      label: <div onClick={removePage}>{i18n('removePage')}</div>,
+      label: i18n('removePage'),
+      onClick: removePage,
     });
   }
 

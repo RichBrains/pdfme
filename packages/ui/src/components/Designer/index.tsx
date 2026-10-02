@@ -108,6 +108,14 @@ const TemplateEditor = ({
   );
   const [canvasHeight, setCanvasHeight] = useState(0);
   const [prevTemplate, setPrevTemplate] = useState<Template | null>(null);
+  // Page layouts changed inside the Designer (page add/remove, undo, layout
+  // panel) do not come back through the `template` prop until the host calls
+  // updateTemplate(), so the latest layout is tracked here and read instead.
+  const [currentLayout, setCurrentLayout] = useState<Template['layout']>(template.layout);
+  const layoutTemplate = useMemo(
+    () => ({ ...template, layout: currentLayout }),
+    [template, currentLayout],
+  );
 
   const sizeExcSidebars = useMemo(
     () => ({
@@ -261,9 +269,9 @@ const TemplateEditor = ({
     (): HistorySnapshot => ({
       schemasList: cloneDeep(schemasList),
       basePdf: template.basePdf,
-      layout: cloneDeep(template.layout),
+      layout: cloneDeep(currentLayout),
     }),
-    [schemasList, template.basePdf, template.layout],
+    [schemasList, template.basePdf, currentLayout],
   );
 
   const commitSchemas = useCallback(
@@ -275,10 +283,10 @@ const TemplateEditor = ({
       setSchemasList(_schemasList);
       onChangeTemplate({
         ...schemasList2template(_schemasList, template.basePdf),
-        layout: template.layout,
+        layout: currentLayout,
       });
     },
-    [getHistorySnapshot, template, schemasList, pageCursor, onChangeTemplate],
+    [getHistorySnapshot, template, currentLayout, schemasList, pageCursor, onChangeTemplate],
   );
 
   const onChangePageLayout = useCallback(
@@ -290,15 +298,16 @@ const TemplateEditor = ({
       past.current.push(getHistorySnapshot());
       const pages = schemasList.map((_, index) =>
         index === targetPageIndex
-          ? update(getPageLayout(template, index))
-          : getPageLayout(template, index),
+          ? update(getPageLayout(layoutTemplate, index))
+          : getPageLayout(layoutTemplate, index),
       );
+      setCurrentLayout({ pages });
       onChangeTemplate({
         ...schemasList2template(schemasList, template.basePdf),
         layout: { pages },
       });
     },
-    [getHistorySnapshot, onChangeTemplate, schemasList, template],
+    [getHistorySnapshot, onChangeTemplate, schemasList, template, layoutTemplate],
   );
 
   const removeSchemas = useCallback(
@@ -338,6 +347,7 @@ const TemplateEditor = ({
     setSchemasList,
     onTimeTravel: (snapshot) => {
       setSchemasList(snapshot.schemasList);
+      setCurrentLayout(snapshot.layout);
       onChangeTemplate({
         ...schemasList2template(snapshot.schemasList, snapshot.basePdf),
         layout: snapshot.layout,
@@ -352,6 +362,7 @@ const TemplateEditor = ({
     async (newTemplate: Template, preservePage = false) => {
       const sl = await template2SchemasList(newTemplate);
       setSchemasList(sl);
+      setCurrentLayout(newTemplate.layout);
       onEditEnd();
       if (!preservePage) {
         setPageCursor(0);
@@ -377,7 +388,7 @@ const TemplateEditor = ({
   const addSchema = (defaultSchema: Schema) => {
     const pageSize = pageSizes[pageCursor];
     if (!pageSize) return;
-    const pageLayout = getPageLayout(template, pageCursor);
+    const pageLayout = getPageLayout(layoutTemplate, pageCursor);
     const contentBounds = getContentBounds(pageLayout.margins, pageSize);
 
     const newSchemaName = (prefix: string) => {
@@ -445,9 +456,16 @@ const TemplateEditor = ({
     setHoveringSchemaId(id);
   };
 
-  const updatePage = async (sl: SchemaForUI[][], newPageCursor: number) => {
+  const updatePage = async (
+    sl: SchemaForUI[][],
+    newPageCursor: number,
+    layoutPages: ReturnType<typeof getPageLayout>[],
+  ) => {
     setPageCursor(newPageCursor);
-    const newTemplate = schemasList2template(sl, template.basePdf);
+    const newTemplate = {
+      ...schemasList2template(sl, template.basePdf),
+      layout: { ...currentLayout, pages: layoutPages },
+    };
     onChangeTemplate(newTemplate);
     await updateTemplate(newTemplate, true);
     void refresh(newTemplate);
@@ -473,13 +491,18 @@ const TemplateEditor = ({
 
     const _schemasList = cloneDeep(schemasList);
     _schemasList.splice(pageCursor, 1);
-    void updatePage(_schemasList, pageCursor - 1);
+    const layoutPages = schemasList.map((_, index) => getPageLayout(layoutTemplate, index));
+    layoutPages.splice(pageCursor, 1);
+    void updatePage(_schemasList, pageCursor - 1, layoutPages);
   };
 
   const handleAddPageAfter = () => {
     const _schemasList = cloneDeep(schemasList);
     _schemasList.splice(pageCursor + 1, 0, []);
-    void updatePage(_schemasList, pageCursor + 1);
+    // The new page inherits the current page's margins and settings.
+    const layoutPages = schemasList.map((_, index) => getPageLayout(layoutTemplate, index));
+    layoutPages.splice(pageCursor + 1, 0, cloneDeep(getPageLayout(layoutTemplate, pageCursor)));
+    void updatePage(_schemasList, pageCursor + 1, layoutPages);
   };
 
   if (prevTemplate !== template) {
@@ -559,7 +582,7 @@ const TemplateEditor = ({
             size={size}
             pageSize={pageSizes[pageCursor] ?? []}
             pageIndex={pageCursor}
-            template={template}
+            template={layoutTemplate}
             onChangePageLayout={onChangePageLayout}
             basePdf={template.basePdf}
             activeElements={activeElements}
@@ -583,7 +606,7 @@ const TemplateEditor = ({
             ref={canvasRef}
             paperRefs={paperRefs}
             basePdf={template.basePdf}
-            template={template}
+            template={layoutTemplate}
             onChangePageLayout={onChangePageLayout}
             hoveringSchemaId={hoveringSchemaId}
             onChangeHoveringSchemaId={onChangeHoveringSchemaId}
