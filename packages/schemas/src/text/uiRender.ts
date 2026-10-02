@@ -1,4 +1,10 @@
-import { getRichLayout, isRichTextSchema, renderRichLayoutDom } from '../richText/index.js';
+import {
+  getRichLayout,
+  getRichTextDisplayValue,
+  getRichTextEditor,
+  isRichTextSchema,
+  renderRichLayoutDom,
+} from '../richText/index.js';
 import type * as CSS from 'csstype';
 import type { Font as FontKitFont } from 'fontkit';
 import {
@@ -93,9 +99,23 @@ export const uiRender = async (arg: UIRenderProps<TextSchema>) => {
   } = arg;
   if (isRichTextSchema(schema, value)) {
     // Rich documents render from the shared layout (WYSIWYG with the PDF).
-    // In-place editing is provided by the host's rich-text editor plugin.
+    // In-place editing is provided by the host's registered rich text editor.
+    // Only while the designer edits the value; Form mode keeps rich text read-only.
+    const richEditor = getRichTextEditor();
+    if (richEditor && mode === 'designer') {
+      richEditor({
+        rootElement: arg.rootElement,
+        value,
+        schema,
+        font: options?.font || getDefaultFont(),
+        onChange: (next) => onChange?.({ key: 'content', value: next }),
+        stopEditing: () => stopEditing?.(),
+      });
+      return;
+    }
+    const richDisplayValue = getRichTextDisplayValue()?.(value) ?? value;
     const layout = await getRichLayout({
-      value,
+      value: richDisplayValue,
       schema,
       widthMm: getBoxContentArea(schema).width,
       font: options?.font || getDefaultFont(),

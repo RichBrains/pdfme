@@ -98,7 +98,8 @@ export class Cell {
   }
 
   padding(name: 'top' | 'bottom' | 'left' | 'right') {
-    return this.styles.cellPadding[name];
+    const padding = this.styles.cellPadding as Styles['cellPadding'] | number | undefined;
+    return typeof padding === 'number' ? padding : (padding?.[name] ?? 0);
   }
 }
 

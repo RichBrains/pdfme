@@ -301,7 +301,11 @@ const DetailView = (props: DetailViewProps) => {
   const typeOptions: Array<{ label: string; value: string | undefined }> = [];
 
   pluginsRegistry.entries().forEach(([label, plugin]) => {
-    typeOptions.push({ label, value: plugin.propPanel.defaultSchema?.type ?? undefined });
+    const value = plugin.propPanel.defaultSchema?.type ?? undefined;
+    // Several palette entries may share a type (presets); list it once, by the
+    // first entry's label, which is also the plugin pdfme renders it with.
+    if (typeOptions.some((option) => option.value === value)) return;
+    typeOptions.push({ label, value });
   });
 
   // Create a safe empty schema as fallback

@@ -6,6 +6,7 @@ import { layoutRichDoc, type RichBaseStyle, type RichLayout } from './layout.js'
 export * from './layout.js';
 export * from './pdfRender.js';
 export * from './uiRender.js';
+export * from './editor.js';
 
 /** A text field renders as a rich document when flagged or when its value is one. */
 export const isRichTextSchema = (schema: Pick<TextSchema, 'textFormat'>, value?: unknown) =>

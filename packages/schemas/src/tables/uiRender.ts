@@ -195,6 +195,14 @@ const renderRowUi = (args: {
         stopEditing: () => {
           if (arg.mode === 'form') {
             resetEditingPosition();
+          } else if (arg.mode === 'designer') {
+            // Leaving the table (not moving to another cell) ends editing, so
+            // the designer commits the cell edits it previews.
+            setTimeout(() => {
+              if (pointerDownInTable.has(arg.rootElement)) return;
+              resetEditingPosition();
+              arg.stopEditing?.();
+            }, 0);
           }
         },
         mode,
@@ -235,6 +243,18 @@ const renderRowUi = (args: {
   });
 };
 
+/** Tables that received a pointer press in the current event loop turn. */
+const pointerDownInTable = new WeakSet<HTMLElement>();
+
+const trackPointerDown = (rootElement: HTMLElement) => {
+  if (rootElement.dataset.pdfmeTablePointer === 'true') return;
+  rootElement.dataset.pdfmeTablePointer = 'true';
+  rootElement.addEventListener('mousedown', () => {
+    pointerDownInTable.add(rootElement);
+    setTimeout(() => pointerDownInTable.delete(rootElement), 50);
+  });
+};
+
 const headEditingPosition = { rowIndex: -1, colIndex: -1 };
 const bodyEditingPosition = { rowIndex: -1, colIndex: -1 };
 const resetEditingPosition = () => {
@@ -253,6 +273,7 @@ export const uiRender = async (arg: UIRenderProps<TableSchema>) => {
   const showHead = table.settings.showHead;
 
   rootElement.innerHTML = '';
+  if (mode === 'designer') trackPointerDown(rootElement);
 
   const handleChangeEditingPosition = (
     newPosition: { rowIndex: number; colIndex: number },
