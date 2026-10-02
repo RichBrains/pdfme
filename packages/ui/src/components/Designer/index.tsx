@@ -386,10 +386,7 @@ const TemplateEditor = ({
   );
 
   const addSchema = (defaultSchema: Schema) => {
-    const pageSize = pageSizes[pageCursor];
-    if (!pageSize) return;
-    const pageLayout = getPageLayout(layoutTemplate, pageCursor);
-    const contentBounds = getContentBounds(pageLayout.margins, pageSize);
+    if (!pageSizes[pageCursor]) return;
 
     const newSchemaName = (prefix: string) => {
       let index = schemasList.reduce((acc, page) => acc + page.length, 1);
@@ -414,38 +411,87 @@ const TemplateEditor = ({
         ? false
         : options.requiredByDefault || defaultSchema.required || false,
     } as SchemaForUI;
+    const requestedWidth = s.width;
 
-    // A newly added fill-width text field needs its final bounds before the
-    // free-space search. The page content bounds are also the placement area,
-    // so a fill field uses the whole available row.
-    const sWithTextProps = s as unknown as { widthMode?: unknown };
-    if (
-      (s.type === 'text' ||
-        s.type === 'multiVariableText' ||
-        // App-specific letter field rendered through the text plugin; kept
-        // as a literal because the fork cannot import app schema constants.
-        s.type === 'conditionalTextBlock') &&
-      sWithTextProps.widthMode === 'fill'
-    ) {
-      s.width = contentBounds.width;
+    /** Sizes the new schema for a page and finds a free spot on it. */
+    const placeOn = (
+      pageSize: { width: number; height: number },
+      pageLayout: ReturnType<typeof getPageLayout>,
+      schemas: SchemaForUI[],
+      preferredPosition?: { x: number; y: number },
+    ) => {
+      const contentBounds = getContentBounds(pageLayout.margins, pageSize);
+      // A newly added fill-width text field needs its final bounds before the
+      // free-space search. The page content bounds are also the placement area,
+      // so a fill field uses the whole available row.
+      const sWithTextProps = s as unknown as { widthMode?: unknown };
+      const fill =
+        (s.type === 'text' ||
+          s.type === 'multiVariableText' ||
+          // App-specific letter field rendered through the text plugin; kept
+          // as a literal because the fork cannot import app schema constants.
+          s.type === 'conditionalTextBlock') &&
+        sWithTextProps.widthMode === 'fill';
+      // A preset wider than this page's content area (e.g. after a margin
+      // change) is narrowed to fit instead of silently not being added.
+      s.width = Math.min(fill ? contentBounds.width : requestedWidth, contentBounds.width);
+      return findFreeSchemaPosition({
+        schema: s,
+        schemas,
+        bounds: contentBounds,
+        margins: getElementMargins(pageLayout),
+        preferredPosition,
+      });
+    };
+
+    const position = placeOn(
+      pageSizes[pageCursor],
+      getPageLayout(layoutTemplate, pageCursor),
+      schemasList[pageCursor],
+      defaultSchema.position,
+    );
+    if (position) {
+      s.position = position;
+      commitSchemas(schemasList[pageCursor].concat(s));
+      setTimeout(() => onEdit([document.getElementById(s.id)]));
+      return;
     }
-    // A preset wider than this page's content area (e.g. after a margin
-    // change) is narrowed to fit instead of silently not being added.
-    s.width = Math.min(s.width, contentBounds.width);
 
-    const position = findFreeSchemaPosition({
-      schema: s,
-      schemas: schemasList[pageCursor],
-      bounds: contentBounds,
-      margins: getElementMargins(pageLayout),
-      preferredPosition: defaultSchema.position,
-    });
-    // The current page is full. Do not create an overlapping field.
-    if (!position) return;
-    s.position = position;
-
-    commitSchemas(schemasList[pageCursor].concat(s));
-    setTimeout(() => onEdit([document.getElementById(s.id)]));
+    // The current page is full: like a word processor, continue on the next
+    // page with room, or append a page with the same layout when pages can be
+    // added. Never create an overlapping field.
+    let targetPage = -1;
+    let targetPosition: { x: number; y: number } | undefined;
+    for (let index = pageCursor + 1; index < schemasList.length; index++) {
+      if (!pageSizes[index]) continue;
+      targetPosition = placeOn(
+        pageSizes[index],
+        getPageLayout(layoutTemplate, index),
+        schemasList[index],
+      );
+      if (targetPosition) {
+        targetPage = index;
+        break;
+      }
+    }
+    const layoutPages = schemasList.map((_, index) => getPageLayout(layoutTemplate, index));
+    const _schemasList = cloneDeep(schemasList);
+    if (targetPage === -1) {
+      if (!isBlankPdf(template.basePdf)) return;
+      const newLayout = cloneDeep(getPageLayout(layoutTemplate, pageCursor));
+      targetPosition = placeOn(pageSizes[pageCursor], newLayout, []);
+      if (!targetPosition) return;
+      targetPage = _schemasList.length;
+      _schemasList.push([]);
+      layoutPages.push(newLayout);
+    }
+    s.position = targetPosition as { x: number; y: number };
+    _schemasList[targetPage] = _schemasList[targetPage].concat(s);
+    future.current = [];
+    past.current.push(getHistorySnapshot());
+    void updatePage(_schemasList, targetPage, layoutPages).then(() =>
+      setTimeout(() => onEdit([document.getElementById(s.id)])),
+    );
   };
 
   const onSortEnd = (sortedSchemas: SchemaForUI[]) => {
