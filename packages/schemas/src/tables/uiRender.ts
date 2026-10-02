@@ -156,6 +156,9 @@ const renderRowUi = (args: {
     return left + column.width + gap;
   }, 0);
 
+  // Empty cells of a table that uses rich cells (e.g. a newly added row) edit
+  // as rich text too, so the whole table behaves the same.
+  const richTable = table.body.some((row) => Object.values(row.cells).some((cell) => cell.rich));
   let rowOffsetY = offsetY;
   rows.forEach((row, rowIndex) => {
     const { cells, height, section } = row;
@@ -178,6 +181,9 @@ const renderRowUi = (args: {
 
       div.addEventListener('click', () => {
         if (arg.mode === 'viewer') return;
+        // Clicks inside the cell being edited (caret moves, word double-clicks)
+        // must not rebuild the table, which would destroy the live editor.
+        if (div.querySelector('[contenteditable]:not([contenteditable="false"])')) return;
         onChangeEditingPosition({ rowIndex, colIndex });
       });
       arg.rootElement.appendChild(div);
@@ -230,6 +236,7 @@ const renderRowUi = (args: {
           width: cell.width,
           height: cell.height,
           ...convertToCellStyle(cell.styles),
+          ...(richTable && section === 'body' && cell.raw === '' ? { textFormat: 'rich' } : {}),
           ...(cell.isSliced()
             ? {
                 verticalAlignment: 'top',
