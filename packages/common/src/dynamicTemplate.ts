@@ -164,6 +164,11 @@ function normalizePageSchemas(
 
 /**
  * Place height units on pages, splitting across pages as needed.
+ *
+ * Units that do not fit the rest of a page are offered to the plugin's
+ * `breakUnit` first (e.g. a table row split at a line boundary); otherwise
+ * they move to the next page, or are force-placed when even an empty page is
+ * too short.
  * @returns The final global Y coordinate after placement
  */
 function placeUnitsOnPages(
@@ -174,101 +179,125 @@ function placeUnitsOnPages(
   paddingTop: number,
   pages: Schema[][],
 ): number {
-  const dynamicHeights = dynamicLayout.heights;
-  let currentUnitIndex = 0;
-  let currentPageIndex = Math.floor(startGlobalY / contentHeight);
-  let currentYInPage = startGlobalY % contentHeight;
+  const heights = [...dynamicLayout.heights];
+  const { breakUnit } = dynamicLayout;
+  const continuationHeight = dynamicLayout.continuationHeight ?? 0;
+  const isSplittable = heights.length > 1 || Boolean(breakUnit);
 
-  if (currentYInPage < 0) currentYInPage = 0;
-
+  let index = 0;
+  // Break state of `heights[index]` when that unit was split on a previous page.
+  let resumeFrom: unknown = undefined;
+  let resumed = false;
+  let pageIndex = Math.floor(startGlobalY / contentHeight);
+  let yInPage = startGlobalY % contentHeight;
+  if (yInPage < 0) yInPage = 0;
+  let isFirstChunk = true;
   let actualGlobalEndY = 0;
-  const isSplittable = dynamicHeights.length > 1;
 
-  while (currentUnitIndex < dynamicHeights.length) {
-    // Ensure page exists
-    while (pages.length <= currentPageIndex) pages.push([]);
+  const nextPage = () => {
+    pageIndex++;
+    yInPage = 0;
+  };
 
-    const spaceLeft = contentHeight - currentYInPage;
-    const unitHeight = dynamicHeights[currentUnitIndex];
+  while (index < heights.length) {
+    while (pages.length <= pageIndex) pages.push([]);
 
-    // If a unit doesn't fit, move to next page
-    if (unitHeight > spaceLeft + EPSILON) {
-      const isAtPageStart = Math.abs(spaceLeft - contentHeight) <= EPSILON;
+    const atPageTop = yInPage <= EPSILON;
+    const startIndex = index;
+    const startFrom = resumed ? resumeFrom : undefined;
+    let chunkHeight = isFirstChunk ? 0 : continuationHeight;
 
-      if (!isAtPageStart) {
-        currentPageIndex++;
-        currentYInPage = 0;
+    // Pack as many whole units as possible on this page.
+    while (
+      index < heights.length &&
+      yInPage + chunkHeight + heights[index] <= contentHeight + EPSILON
+    ) {
+      chunkHeight += heights[index];
+      index++;
+      resumed = false;
+      resumeFrom = undefined;
+    }
+
+    // Fill the rest of the page with part of the next unit, when supported.
+    let endAt: unknown = undefined;
+    let broke = false;
+    if (index < heights.length && breakUnit) {
+      const piece = breakUnit({
+        index,
+        from: resumed ? resumeFrom : undefined,
+        available: contentHeight - yInPage - chunkHeight,
+        atPageTop: atPageTop && index === startIndex,
+      });
+      if (piece && piece.height > EPSILON) {
+        chunkHeight += piece.height;
+        heights[index] = piece.restHeight;
+        resumeFrom = piece.to;
+        resumed = true;
+        endAt = piece.to;
+        broke = true;
+      }
+    }
+    let end = broke ? index + 1 : index;
+
+    if (end === startIndex) {
+      if (!atPageTop) {
+        nextPage();
         continue;
       }
       // Force placement for oversized units that don't fit even on a fresh page
-    }
-
-    // Pack as many units as possible on this page
-    let chunkHeight = 0;
-    const startUnitIndex = currentUnitIndex;
-
-    while (currentUnitIndex < dynamicHeights.length) {
-      const h = dynamicHeights[currentUnitIndex];
-      if (currentYInPage + chunkHeight + h <= contentHeight + EPSILON) {
-        chunkHeight += h;
-        currentUnitIndex++;
-      } else {
-        break;
-      }
+      chunkHeight += heights[index];
+      index++;
+      resumed = false;
+      resumeFrom = undefined;
+      end = index;
     }
 
     // Some schemas, such as tables with headers, should not leave the first unit
     // alone on a page without any following data units.
     // BUT: if already at page top, don't move (prevents infinite loop when data row is too large)
-    const isAtPageTop = currentYInPage <= EPSILON;
     if (
       dynamicLayout.avoidFirstUnitOnly &&
       isSplittable &&
-      startUnitIndex === 0 &&
-      currentUnitIndex === 1 &&
-      dynamicHeights.length > 1 &&
-      !isAtPageTop
+      startIndex === 0 &&
+      end === 1 &&
+      heights.length > 1 &&
+      !atPageTop
     ) {
-      currentUnitIndex = 0;
-      currentPageIndex++;
-      currentYInPage = 0;
+      index = 0;
+      resumed = false;
+      resumeFrom = undefined;
+      nextPage();
       continue;
-    }
-
-    // Force at least one unit to prevent infinite loop
-    if (currentUnitIndex === startUnitIndex) {
-      chunkHeight += dynamicHeights[currentUnitIndex];
-      currentUnitIndex++;
     }
 
     // Create schema for this chunk
     const patch =
       dynamicLayout.patchSplitSchema?.({
         schema,
-        start: startUnitIndex,
-        end: currentUnitIndex,
-        isSplit: startUnitIndex > 0,
+        start: startIndex,
+        end,
+        isSplit: !isFirstChunk,
         chunkHeight,
+        ...(startFrom === undefined ? {} : { startFrom }),
+        ...(endAt === undefined ? {} : { endAt }),
       }) ?? {};
 
-    const newSchema: Schema = {
+    pages[pageIndex].push({
       ...schema,
       ...patch,
       height: chunkHeight,
-      position: { ...schema.position, y: currentYInPage + paddingTop },
-    };
-
-    pages[currentPageIndex].push(newSchema);
+      position: { ...schema.position, y: yInPage + paddingTop },
+    });
+    isFirstChunk = false;
 
     // Update position
-    currentYInPage += chunkHeight;
+    yInPage += chunkHeight;
 
-    if (currentYInPage >= contentHeight - EPSILON) {
-      currentPageIndex++;
-      currentYInPage = 0;
+    if (broke || yInPage >= contentHeight - EPSILON) {
+      nextPage();
     }
 
-    actualGlobalEndY = currentPageIndex * contentHeight + currentYInPage;
+    actualGlobalEndY = pageIndex * contentHeight + yInPage;
   }
 
   return actualGlobalEndY;

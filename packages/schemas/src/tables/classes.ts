@@ -1,7 +1,16 @@
-import { Font, mm2pt, pt2mm } from '@pdfme/common';
+import {
+  Font,
+  isRichDocValue,
+  mm2pt,
+  parseRichDoc,
+  pt2mm,
+  richDocToPlainText,
+} from '@pdfme/common';
 import type { Font as FontKitFont } from 'fontkit';
 import { splitTextToSize, getFontKitFont, widthOfTextAtSize } from '../text/helper.js';
-import type { Styles, TableInput, Settings, Section, StylesProps } from './types.js';
+import { getRichLayout } from '../richText/index.js';
+import type { TextSchema } from '../text/types.js';
+import type { RowLineState, Styles, TableInput, Settings, Section, StylesProps } from './types.js';
 
 type ContentSettings = { body: Row[]; head: Row[]; columns: Column[] };
 
@@ -10,6 +19,16 @@ export class Cell {
   text: string[];
   styles: Styles;
   section: Section;
+  /** Column the cell starts in, and how many columns it spans. */
+  colIndex = 0;
+  colSpan = 1;
+  /** Whether `raw` is a rich document. */
+  rich: boolean;
+  /** Height (mm) of every laid-out line, including paragraph spacing. */
+  lineHeights: number[] = [];
+  /** Line slice shown when the row is split across pages. */
+  lineStart = 0;
+  lineEnd?: number;
   contentHeight = 0;
   contentWidth = 0;
   wrappedWidth = 0;
@@ -25,16 +44,57 @@ export class Cell {
     this.styles = styles;
     this.section = section;
     this.raw = raw;
+    this.rich = isRichDocValue(raw);
     const splitRegex = /\r\n|\r|\n/g;
-    this.text = raw.split(splitRegex);
+    this.text = (this.rich ? richDocToPlainText(parseRichDoc(raw)) : raw).split(splitRegex);
+  }
+
+  /** Whether only part of the cell's lines is shown (row split across pages). */
+  isSliced() {
+    return (
+      this.lineStart > 0 || (this.lineEnd !== undefined && this.lineEnd < this.lineHeights.length)
+    );
+  }
+
+  getLinesHeight(start = this.lineStart, end = this.lineEnd ?? this.lineHeights.length) {
+    return this.lineHeights.slice(start, end).reduce((acc, height) => acc + height, 0);
   }
 
   getContentHeight() {
-    const lineCount = Array.isArray(this.text) ? this.text.length : 1;
-    const lineHeight = pt2mm(this.styles.fontSize) * this.styles.lineHeight;
     const vPadding = this.padding('top') + this.padding('bottom');
-    const height = lineCount * lineHeight + vPadding;
+    const height = this.getLinesHeight() + vPadding;
     return Math.max(height, this.styles.minCellHeight);
+  }
+
+  /** Width (mm) available to the text: the cell minus padding and borders. */
+  getTextWidth() {
+    const borders = this.styles.lineWidth;
+    const borderLeft = typeof borders === 'number' ? borders : (borders?.left ?? 0);
+    const borderRight = typeof borders === 'number' ? borders : (borders?.right ?? 0);
+    return Math.max(
+      0,
+      this.width - this.padding('left') - this.padding('right') - borderLeft - borderRight,
+    );
+  }
+
+  /** The text schema the cell's content is measured and drawn with. */
+  getTextSchema(): TextSchema {
+    return {
+      name: '',
+      type: 'text',
+      position: { x: 0, y: 0 },
+      width: this.getTextWidth(),
+      height: 0,
+      content: this.raw,
+      fontName: this.styles.fontName,
+      alignment: this.styles.alignment,
+      verticalAlignment: this.styles.verticalAlignment,
+      fontSize: this.styles.fontSize,
+      lineHeight: this.styles.lineHeight,
+      characterSpacing: this.styles.characterSpacing,
+      fontColor: this.styles.textColor,
+      backgroundColor: '',
+    } as unknown as TextSchema;
   }
 
   padding(name: 'top' | 'bottom' | 'left' | 'right') {
@@ -56,7 +116,8 @@ export class Column {
   getMaxCustomCellWidth(table: Table) {
     let max = 0;
     for (const row of table.allRows()) {
-      const cell: Cell = row.cells[this.index];
+      const cell: Cell | undefined = row.cells[this.index];
+      if (!cell) continue;
       max = Math.max(max, cell.styles.cellWidth);
     }
     return max;
@@ -143,6 +204,40 @@ export class Table {
   getHeight() {
     return (this.settings.showHead ? this.getHeadHeight() : 0) + this.getBodyHeight();
   }
+
+  /** Total width of the columns `from`..`from + span - 1`, including the gaps between them. */
+  getSpanWidth(from: number, span: number) {
+    const columns = this.columns.slice(from, from + span);
+    const gaps = Math.max(0, columns.length - 1) * this.settings.columnGap;
+    return columns.reduce((acc, column) => acc + column.width, 0) + gaps;
+  }
+
+  /** Shows only part of the first/last body row, as laid out across pages. */
+  applyRowSlice(slice: { first?: RowLineState; last?: RowLineState }) {
+    if (this.body.length === 0) return;
+    const first = this.body[0];
+    const last = this.body[this.body.length - 1];
+    if (slice.first) {
+      for (const cell of Object.values(first.cells)) {
+        cell.lineStart = Math.min(slice.first[cell.colIndex] ?? 0, cell.lineHeights.length);
+      }
+    }
+    if (slice.last) {
+      for (const cell of Object.values(last.cells)) {
+        cell.lineEnd = Math.max(
+          cell.lineStart,
+          slice.last[cell.colIndex] ?? cell.lineHeights.length,
+        );
+      }
+    }
+    for (const row of new Set([first, last])) {
+      row.height = Object.values(row.cells).reduce(
+        (acc, cell) => Math.max(acc, cell.getContentHeight()),
+        0,
+      );
+      for (const cell of Object.values(row.cells)) cell.height = row.height;
+    }
+  }
 }
 
 async function calculateWidths(arg: {
@@ -156,6 +251,7 @@ async function calculateWidths(arg: {
     getFontKitFont(fontName, font, _cache);
 
   await calculate(table, getFontKitFontByFontName);
+  const gaps = Math.max(0, table.columns.length - 1) * table.settings.columnGap;
 
   const resizableColumns: Column[] = [];
   let initialTableWidth = 0;
@@ -174,7 +270,7 @@ async function calculateWidths(arg: {
   });
 
   // width difference that needs to be distributed
-  let resizeWidth = table.getWidth() - initialTableWidth;
+  let resizeWidth = table.getWidth() - gaps - initialTableWidth;
 
   // first resize attempt: with respect to minReadableWidth and minWidth
   if (resizeWidth) {
@@ -191,70 +287,20 @@ async function calculateWidths(arg: {
   resizeWidth = Math.abs(resizeWidth);
 
   applyColSpans(table);
-  await fitContent(table, getFontKitFontByFontName);
-  applyRowSpans(table);
+  await fitContent(table, getFontKitFontByFontName, font, _cache);
+  applyRowHeights(table);
 }
 
-function applyRowSpans(table: Table) {
-  const rowSpanCells: {
-    [key: string]: { cell: Cell; left: number; row: Row };
-  } = {};
-  let colRowSpansLeft = 1;
-  const all = table.allRows();
-  for (let rowIndex = 0; rowIndex < all.length; rowIndex++) {
-    const row = all[rowIndex];
-    for (const column of table.columns) {
-      const data = rowSpanCells[column.index];
-      if (colRowSpansLeft > 1) {
-        colRowSpansLeft--;
-        delete row.cells[column.index];
-      } else if (data) {
-        data.cell.height += row.height;
-        colRowSpansLeft = 1;
-        delete row.cells[column.index];
-        data.left--;
-        if (data.left <= 1) {
-          delete rowSpanCells[column.index];
-        }
-      } else {
-        const cell = row.cells[column.index];
-        if (!cell) {
-          continue;
-        }
-        cell.height = row.height;
-      }
-    }
+function applyRowHeights(table: Table) {
+  for (const row of table.allRows()) {
+    for (const cell of Object.values(row.cells)) cell.height = row.height;
   }
 }
 
 function applyColSpans(table: Table) {
-  const all = table.allRows();
-  for (let rowIndex = 0; rowIndex < all.length; rowIndex++) {
-    const row = all[rowIndex];
-
-    let colSpanCell = null;
-    let combinedColSpanWidth = 0;
-    let colSpansLeft = 0;
-    for (let columnIndex = 0; columnIndex < table.columns.length; columnIndex++) {
-      const column = table.columns[columnIndex];
-
-      // Width and colspan
-      colSpansLeft -= 1;
-      if (colSpansLeft > 1 && table.columns[columnIndex + 1]) {
-        combinedColSpanWidth += column.width;
-        delete row.cells[column.index];
-      } else if (colSpanCell) {
-        const cell: Cell = colSpanCell;
-        delete row.cells[column.index];
-        colSpanCell = null;
-        cell.width = column.width + combinedColSpanWidth;
-      } else {
-        const cell = row.cells[column.index];
-        if (!cell) continue;
-        colSpansLeft = 1;
-        combinedColSpanWidth = 0;
-        cell.width = column.width + combinedColSpanWidth;
-      }
+  for (const row of table.allRows()) {
+    for (const cell of Object.values(row.cells)) {
+      cell.width = table.getSpanWidth(cell.colIndex, cell.colSpan);
     }
   }
 }
@@ -262,35 +308,39 @@ function applyColSpans(table: Table) {
 async function fitContent(
   table: Table,
   getFontKitFontByFontName: (fontName: string | undefined) => Promise<FontKitFont>,
+  font: Font,
+  _cache: Map<string | number, FontKitFont>,
 ) {
-  const rowSpanHeight = { count: 0, height: 0 };
   for (const row of table.allRows()) {
-    for (const column of table.columns) {
-      const cell: Cell = row.cells[column.index];
-      if (!cell) continue;
-
-      const fontKitFont = await getFontKitFontByFontName(cell.styles.fontName);
-      cell.text = splitTextToSize({
-        value: cell.raw,
-        characterSpacing: cell.styles.characterSpacing,
-        boxWidthInPt: mm2pt(cell.width),
-        fontSize: cell.styles.fontSize,
-        fontKitFont,
-      });
+    for (const cell of Object.values(row.cells)) {
+      if (cell.rich) {
+        const layout = await getRichLayout({
+          value: cell.raw,
+          schema: cell.getTextSchema(),
+          widthMm: cell.getTextWidth(),
+          font,
+          _cache: _cache as unknown as Map<string | number, unknown>,
+        });
+        cell.lineHeights = layout.lines.map((line) => line.height);
+      } else {
+        const fontKitFont = await getFontKitFontByFontName(cell.styles.fontName);
+        // Wrap at the text area (inside padding), exactly as the cell draws it.
+        cell.text = splitTextToSize({
+          value: cell.raw,
+          characterSpacing: cell.styles.characterSpacing,
+          boxWidthInPt: mm2pt(cell.getTextWidth()),
+          fontSize: cell.styles.fontSize,
+          fontKitFont,
+        });
+        const lineHeight = pt2mm(cell.styles.fontSize) * cell.styles.lineHeight;
+        cell.lineHeights = cell.text.map(() => lineHeight);
+      }
 
       cell.contentHeight = cell.getContentHeight();
-
-      let realContentHeight = cell.contentHeight;
-      if (rowSpanHeight && rowSpanHeight.count > 0) {
-        if (rowSpanHeight.height > realContentHeight) {
-          realContentHeight = rowSpanHeight.height;
-        }
-      }
-      if (realContentHeight > row.height) {
-        row.height = realContentHeight;
+      if (cell.contentHeight > row.height) {
+        row.height = cell.contentHeight;
       }
     }
-    rowSpanHeight.count--;
   }
 }
 

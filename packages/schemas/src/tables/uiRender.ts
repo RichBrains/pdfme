@@ -4,8 +4,8 @@ import { px2mm, ZOOM } from '@pdfme/common';
 import { createSingleTable } from './tableHelper.js';
 import { getBody, getBodyWithSchemaRange } from './helper.js';
 import cell from './cell.js';
-import { Row } from './classes.js';
-import { getTableBodyRange } from '../splitRange.js';
+import { Row, Table } from './classes.js';
+import { createTextLineSplitRange, getTableBodyRange } from '../splitRange.js';
 
 const buttonSize = 18;
 
@@ -110,13 +110,16 @@ const setBorder = (
 const drawBorder = (
   div: HTMLDivElement,
   row: RowType,
-  colIndex: number,
+  cell: { colIndex: number; colSpan: number },
+  table: Table,
   rowIndex: number,
   rowsLength: number,
   arg: UIRenderProps<TableSchema>,
 ) => {
-  const isFirstColumn = colIndex === 0;
-  const isLastColumn = colIndex === Object.values(row.cells).length - 1;
+  // With a column gap every column is framed on its own.
+  const framed = table.settings.columnGap > 0;
+  const isFirstColumn = framed || cell.colIndex === 0;
+  const isLastColumn = framed || cell.colIndex + cell.colSpan >= table.columns.length;
   const isLastRow = rowIndex === rowsLength - 1;
 
   if (row.section === 'head') {
@@ -138,20 +141,29 @@ const drawBorder = (
 
 const renderRowUi = (args: {
   rows: RowType[];
+  table: Table;
   arg: UIRenderProps<TableSchema>;
   editingPosition: { rowIndex: number; colIndex: number };
   onChangeEditingPosition: (position: { rowIndex: number; colIndex: number }) => void;
   offsetY?: number;
 }) => {
-  const { rows, arg, onChangeEditingPosition, offsetY = 0, editingPosition } = args;
+  const { rows, table, arg, onChangeEditingPosition, offsetY = 0, editingPosition } = args;
   const value = JSON.parse(arg.value || '[]') as string[][];
+  const gap = table.settings.columnGap;
+  const columnLefts: number[] = [];
+  table.columns.reduce((left, column, index) => {
+    columnLefts[index] = left;
+    return left + column.width + gap;
+  }, 0);
 
   let rowOffsetY = offsetY;
   rows.forEach((row, rowIndex) => {
     const { cells, height, section } = row;
-    let colOffsetX = 0;
-    Object.values(cells).forEach((cell, colIndex) => {
+    Object.values(cells).forEach((cell) => {
+      const colIndex = cell.colIndex;
+      const colOffsetX = columnLefts[colIndex] ?? 0;
       const div = document.createElement('div');
+      if (cell.styles.lang) div.lang = cell.styles.lang;
       div.style.position = 'absolute';
       div.style.top = `${rowOffsetY}mm`;
       div.style.left = `${colOffsetX}mm`;
@@ -159,7 +171,7 @@ const renderRowUi = (args: {
       div.style.height = `${cell.height}mm`;
       div.style.boxSizing = 'border-box';
 
-      drawBorder(div, row, colIndex, rowIndex, rows.length, arg);
+      drawBorder(div, row, cell, table, rowIndex, rows.length, arg);
 
       div.style.cursor =
         arg.mode === 'designer' || (arg.mode === 'form' && section === 'body') ? 'text' : 'default';
@@ -210,9 +222,14 @@ const renderRowUi = (args: {
           width: cell.width,
           height: cell.height,
           ...convertToCellStyle(cell.styles),
+          ...(cell.isSliced()
+            ? {
+                verticalAlignment: 'top',
+                __splitRange: createTextLineSplitRange(cell.lineStart, cell.lineEnd),
+              }
+            : {}),
         },
       });
-      colOffsetX += cell.width;
     });
     rowOffsetY += height;
   });
@@ -250,6 +267,7 @@ export const uiRender = async (arg: UIRenderProps<TableSchema>) => {
   if (showHead) {
     renderRowUi({
       rows: table.head,
+      table,
       arg,
       editingPosition: headEditingPosition,
       onChangeEditingPosition: (p) => handleChangeEditingPosition(p, headEditingPosition),
@@ -259,6 +277,7 @@ export const uiRender = async (arg: UIRenderProps<TableSchema>) => {
   const offsetY = showHead ? table.getHeadHeight() : 0;
   renderRowUi({
     rows: table.body,
+    table,
     arg,
     editingPosition: bodyEditingPosition,
     onChangeEditingPosition: (p) => {
@@ -348,7 +367,7 @@ export const uiRender = async (arg: UIRenderProps<TableSchema>) => {
     let offsetX = 0;
     table.columns.forEach((column, i, columns) => {
       if (columns.length === 1) return;
-      offsetX = offsetX + column.width;
+      offsetX = offsetX + column.width + (i > 0 ? table.settings.columnGap : 0);
       const removeColumnButton = createButton({
         width: buttonSize,
         height: buttonSize,

@@ -281,12 +281,43 @@ export type DynamicLayoutPatchArgs = {
   end: number;
   isSplit: boolean;
   chunkHeight: number;
+  /** Break state the first unit of the chunk resumes from (see `breakUnit`). */
+  startFrom?: unknown;
+  /** Break state the last unit of the chunk stops at (see `breakUnit`). */
+  endAt?: unknown;
+};
+
+export type DynamicLayoutBreakArgs = {
+  /** Unit to break. */
+  index: number;
+  /** State returned by a previous break of the same unit, if it is resumed. */
+  from?: unknown;
+  /** Height available on the current page (mm). */
+  available: number;
+  /** Whether the unit would start at the top of an empty page. */
+  atPageTop: boolean;
+};
+
+export type DynamicLayoutBreak = {
+  /** Height (mm) the broken part occupies on the current page. */
+  height: number;
+  /** Opaque, JSON-serializable state where the unit stops on this page. */
+  to: unknown;
+  /** Height (mm) of the rest of the unit when continued on the next page. */
+  restHeight: number;
 };
 
 export type DynamicLayoutResult = {
   heights: number[];
   avoidFirstUnitOnly?: boolean;
   patchSplitSchema?: (args: DynamicLayoutPatchArgs) => Partial<Schema>;
+  /**
+   * Splits a unit that does not fit the remaining page height (e.g. a table
+   * row at a line boundary). Return null to move the whole unit instead.
+   */
+  breakUnit?: (args: DynamicLayoutBreakArgs) => DynamicLayoutBreak | null;
+  /** Height reserved at the top of every continuation chunk (e.g. a repeated header). */
+  continuationHeight?: number;
 };
 
 export type DynamicLayoutCallbackResult = DynamicLayoutResult | number[];

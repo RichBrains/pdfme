@@ -51,6 +51,8 @@ import type {
   DynamicLayoutArgs,
   DynamicLayoutCallbackResult,
   DynamicLayoutPatchArgs,
+  DynamicLayoutBreakArgs,
+  DynamicLayoutBreak,
   DynamicLayoutResult,
   GetDynamicLayout,
 } from './types.js';
@@ -232,6 +234,8 @@ export type {
   DynamicLayoutArgs,
   DynamicLayoutCallbackResult,
   DynamicLayoutPatchArgs,
+  DynamicLayoutBreakArgs,
+  DynamicLayoutBreak,
   DynamicLayoutResult,
   GetDynamicLayout,
   PdfLinkAnnotationRect,

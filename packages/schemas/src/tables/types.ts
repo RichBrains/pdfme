@@ -22,6 +22,18 @@ export interface CellStyle {
 
 export type CellSchema = Schema & CellStyle;
 
+/** Style override at row, column or cell level; unset keys inherit. */
+export type CellStyleOverride = Partial<CellStyle> & {
+  /** Spellcheck / hyphenation language of the text (e.g. `de`, `en`). */
+  lang?: string;
+};
+
+/** Override for one cell; `colSpan` merges it with the cells to its right. */
+export type CellOverride = CellStyleOverride & { colSpan?: number };
+
+/** Break state of a table row split across pages: first line index per column. */
+export type RowLineState = number[];
+
 export type TableSchema = Schema & {
   showHead: boolean;
   head: string[];
@@ -36,7 +48,25 @@ export type TableSchema = Schema & {
   bodyStyles: CellStyle & { alternateBackgroundColor: string };
   columnStyles: {
     alignment?: { [colIndex: number]: ALIGNMENT };
+    /** Further per-column styles (font, colours, padding, borders, language). */
+    styles?: { [colIndex: number]: CellStyleOverride };
   };
+  /**
+   * Gap (mm) between columns. With a gap each column is drawn as its own
+   * bordered box, e.g. a German and an English column side by side.
+   */
+  columnGap?: number;
+  /** Body row overrides keyed by row index. */
+  rowStyles?: { [rowIndex: number]: CellStyleOverride };
+  /** Cell overrides keyed by `row:col` (body) or `h:col` (head). */
+  cellStyles?: { [cellKey: string]: CellOverride };
+  /**
+   * Let rows break across pages at line boundaries. Rows taller than a whole
+   * page always break.
+   */
+  splitRows?: boolean;
+  /** Line slices of the first/last body row of a page chunk (set by the layout). */
+  __rowSlice?: { first?: RowLineState; last?: RowLineState };
 };
 
 export interface Styles {
@@ -54,6 +84,8 @@ export interface Styles {
   cellWidth: number;
   minCellHeight: number;
   minCellWidth: number;
+  lang?: string;
+  colSpan?: number;
 }
 
 export interface TableInput {
@@ -75,6 +107,7 @@ export interface Settings {
   showHead: boolean;
   tableLineWidth: number;
   tableLineColor: string;
+  columnGap: number;
 }
 
 export interface StylesProps {
@@ -83,6 +116,9 @@ export interface StylesProps {
   bodyStyles: Partial<Styles>;
   alternateRowStyles: Partial<Styles>;
   columnStyles: { [key: string]: Partial<Styles> };
+  columnBodyStyles: { [key: string]: Partial<Styles> };
+  rowStyles: { [key: string]: Partial<Styles> };
+  cellStyles: { [key: string]: Partial<Styles> };
 }
 
 export type Section = 'head' | 'body';

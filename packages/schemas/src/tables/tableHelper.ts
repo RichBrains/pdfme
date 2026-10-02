@@ -10,6 +10,7 @@ import {
 import type { Font as FontKitFont } from 'fontkit';
 import type {
   TableSchema,
+  CellOverride,
   CellStyle,
   Styles,
   Spacing,
@@ -20,7 +21,15 @@ import type {
 import { Cell, Column, Row, Table } from './classes.js';
 import { getTableBodyRange } from '../splitRange.js';
 
-type StyleProp = 'styles' | 'headStyles' | 'bodyStyles' | 'alternateRowStyles' | 'columnStyles';
+type StyleProp =
+  | 'styles'
+  | 'headStyles'
+  | 'bodyStyles'
+  | 'alternateRowStyles'
+  | 'columnStyles'
+  | 'columnBodyStyles'
+  | 'rowStyles'
+  | 'cellStyles';
 
 interface CreateTableArgs {
   schema: Schema;
@@ -46,6 +55,11 @@ interface UserOptions {
   columnStyles?: {
     [key: string]: Partial<Styles>;
   };
+  /** Column styles that apply to body cells only (head keeps its own look). */
+  columnBodyStyles?: { [key: string]: Partial<Styles> };
+  rowStyles?: { [key: string]: Partial<Styles> };
+  cellStyles?: { [key: string]: Partial<Styles> };
+  columnGap?: number;
 }
 
 function parseSection(
@@ -54,65 +68,60 @@ function parseSection(
   columns: Column[],
   styleProps: StylesProps,
   fallbackFontName: string,
+  rowOffset: number,
 ): Row[] {
-  const rowSpansLeftForColumn: { [key: string]: { left: number; times: number } } = {};
-  const result = sectionRows.map((rawRow, rowIndex) => {
-    let skippedRowForRowSpans = 0;
+  return sectionRows.map((rawRow, rowIndex) => {
     const cells: { [key: string]: Cell } = {};
-
-    let colSpansAdded = 0;
-    let columnSpansLeft = 0;
+    let covered = 0;
     for (const column of columns) {
-      if (
-        rowSpansLeftForColumn[column.index] == null ||
-        rowSpansLeftForColumn[column.index].left === 0
-      ) {
-        if (columnSpansLeft === 0) {
-          let rawCell;
-          if (Array.isArray(rawRow)) {
-            rawCell = rawRow[column.index - colSpansAdded - skippedRowForRowSpans];
-          } else {
-            rawCell = rawRow[column.index];
-          }
-          const styles = cellStyles(sectionName, column, rowIndex, styleProps, fallbackFontName);
-          const cell = new Cell(rawCell, styles, sectionName);
-          cells[column.index] = cell;
-
-          columnSpansLeft = 0;
-          rowSpansLeftForColumn[column.index] = {
-            left: 0,
-            times: columnSpansLeft,
-          };
-        } else {
-          columnSpansLeft--;
-          colSpansAdded++;
-        }
-      } else {
-        rowSpansLeftForColumn[column.index].left--;
-        columnSpansLeft = rowSpansLeftForColumn[column.index].times;
-        skippedRowForRowSpans++;
+      // Columns merged into a cell to their left have no cell of their own.
+      if (covered > 0) {
+        covered--;
+        continue;
       }
+      const rawCell = (rawRow as unknown as Record<number, unknown>)?.[column.index];
+      const styles = cellStyles(
+        sectionName,
+        column,
+        rowIndex,
+        rowOffset,
+        styleProps,
+        fallbackFontName,
+      );
+      const colSpan = Math.max(
+        1,
+        Math.min(Math.floor(styles.colSpan ?? 1), columns.length - column.index),
+      );
+      const cell = new Cell(rawCell == null ? '' : String(rawCell), styles, sectionName);
+      cell.colIndex = column.index;
+      cell.colSpan = colSpan;
+      cells[column.index] = cell;
+      covered = colSpan - 1;
     }
     return new Row(rawRow, rowIndex, sectionName, cells);
   });
-  return result;
 }
 
-function parseContent4Table(input: TableInput, fallbackFontName: string) {
+function parseContent4Table(input: TableInput, fallbackFontName: string, rowOffset: number) {
   const content = input.content;
   const columns = content.columns.map((index) => new Column(index));
   const styles = input.styles;
   return {
     columns,
-    head: parseSection('head', content.head, columns, styles, fallbackFontName),
-    body: parseSection('body', content.body, columns, styles, fallbackFontName),
+    head: parseSection('head', content.head, columns, styles, fallbackFontName, 0),
+    body: parseSection('body', content.body, columns, styles, fallbackFontName, rowOffset),
   };
 }
 
+/**
+ * Resolves a cell's styles from the layers, lowest first: defaults, table,
+ * section (head/body), alternate row, row, column, cell.
+ */
 function cellStyles(
   sectionName: Section,
   column: Column,
   rowIndex: number,
+  rowOffset: number,
   styles: StylesProps,
   fallbackFontName: string,
 ) {
@@ -146,7 +155,57 @@ function cellStyles(
     minCellHeight: 0,
     minCellWidth: 0,
   };
-  return Object.assign(defaultStyle, otherStyles, rowStyles, colStyles) as Styles;
+  const absoluteRow = rowOffset + rowIndex;
+  const rowOverride = sectionName === 'body' ? styles.rowStyles[absoluteRow] || {} : {};
+  const columnBodyOverride =
+    sectionName === 'body' ? styles.columnBodyStyles[column.index] || {} : {};
+  const cellOverride =
+    styles.cellStyles[
+      sectionName === 'head' ? `h:${column.index}` : `${absoluteRow}:${column.index}`
+    ] || {};
+  return Object.assign(
+    defaultStyle,
+    otherStyles,
+    rowStyles,
+    rowOverride,
+    colStyles,
+    columnBodyOverride,
+    cellOverride,
+  ) as Styles;
+}
+
+/** Maps a partial (override) cell style, leaving unset keys out so they inherit. */
+function mapCellOverride(style: CellOverride | undefined): Partial<Styles> {
+  if (!style) return {};
+  const mapped: Partial<Styles> = {
+    fontName: style.fontName,
+    alignment: style.alignment,
+    verticalAlignment: style.verticalAlignment,
+    fontSize: style.fontSize,
+    lineHeight: style.lineHeight,
+    characterSpacing: style.characterSpacing,
+    backgroundColor: style.backgroundColor,
+    textColor: style.fontColor,
+    lineColor: style.borderColor,
+    lineWidth: style.borderWidth,
+    cellPadding: style.padding,
+    lang: style.lang,
+    colSpan: style.colSpan,
+  };
+  return Object.fromEntries(
+    Object.entries(mapped).filter(([, value]) => value !== undefined && value !== ''),
+  ) as Partial<Styles>;
+}
+
+function mapOverrides<K extends string | number>(
+  overrides: { [key in K]?: CellOverride } | undefined,
+): Record<string, Partial<Styles>> {
+  return Object.fromEntries(
+    Object.entries(overrides ?? {}).map(([key, value]) => [
+      key,
+      mapCellOverride(value as CellOverride),
+    ]),
+  );
 }
 
 function mapCellStyle(style: CellStyle): Partial<Styles> {
@@ -166,9 +225,15 @@ function mapCellStyle(style: CellStyle): Partial<Styles> {
   };
 }
 
+/** Column gap (mm) of a table schema. */
+export const getColumnGap = (schema: Pick<TableSchema, 'columnGap'>) =>
+  Math.max(0, Number(schema.columnGap) || 0);
+
 function getTableOptions(schema: TableSchema, body: string[][]): UserOptions {
+  const gaps = getColumnGap(schema) * Math.max(0, schema.headWidthPercentages.length - 1);
+  const columnsWidth = Math.max(0, schema.width - gaps);
   const columnStylesWidth = schema.headWidthPercentages.reduce(
-    (acc, cur, i) => ({ ...acc, [i]: { cellWidth: schema.width * (cur / 100) } }),
+    (acc, cur, i) => ({ ...acc, [i]: { cellWidth: columnsWidth * (cur / 100) } }),
     {} as Record<number, Partial<Styles>>,
   );
 
@@ -176,6 +241,8 @@ function getTableOptions(schema: TableSchema, body: string[][]): UserOptions {
     (acc, [key, value]) => ({ ...acc, [key]: { alignment: value } }),
     {} as Record<number, Partial<Styles>>,
   );
+
+  const columnStylesExtra = mapOverrides(schema.columnStyles.styles);
 
   const allKeys = new Set([
     ...Object.keys(columnStylesWidth).map(Number),
@@ -185,7 +252,7 @@ function getTableOptions(schema: TableSchema, body: string[][]): UserOptions {
     (acc, key) => {
       const widthStyle = columnStylesWidth[key] || {};
       const alignmentStyle = columnStylesAlignment[key] || {};
-      return { ...acc, [key]: { ...widthStyle, ...alignmentStyle } };
+      return { ...acc, [key]: { ...alignmentStyle, ...widthStyle } };
     },
     {} as Record<number, Partial<Styles>>,
   );
@@ -202,6 +269,10 @@ function getTableOptions(schema: TableSchema, body: string[][]): UserOptions {
     bodyStyles: mapCellStyle(schema.bodyStyles),
     alternateRowStyles: { backgroundColor: schema.bodyStyles.alternateBackgroundColor },
     columnStyles,
+    columnBodyStyles: columnStylesExtra,
+    rowStyles: mapOverrides(schema.rowStyles),
+    cellStyles: mapOverrides(schema.cellStyles),
+    columnGap: getColumnGap(schema),
     margin: { top: 0, right: 0, left: schema.position.x, bottom: 0 },
   };
 }
@@ -213,11 +284,18 @@ function parseStyles(cInput: UserOptions) {
     bodyStyles: {},
     alternateRowStyles: {},
     columnStyles: {},
+    columnBodyStyles: {},
+    rowStyles: {},
+    cellStyles: {},
   };
   for (const prop of Object.keys(styleOptions) as StyleProp[]) {
-    if (prop === 'columnStyles') {
-      const current = cInput[prop];
-      styleOptions.columnStyles = Object.assign({}, current);
+    if (
+      prop === 'columnStyles' ||
+      prop === 'columnBodyStyles' ||
+      prop === 'rowStyles' ||
+      prop === 'cellStyles'
+    ) {
+      styleOptions[prop] = Object.assign({}, cInput[prop]);
     } else {
       const allOptions = [cInput];
       const styles = allOptions.map((opts) => opts[prop] || {});
@@ -244,6 +322,7 @@ function parseInput(schema: TableSchema, body: string[][]): TableInput {
     showHead: options.showHead,
     tableLineWidth: options.tableLineWidth ?? 0,
     tableLineColor: options.tableLineColor ?? '',
+    columnGap: options.columnGap ?? 0,
   };
 
   const content = parseContent4Input(options);
@@ -251,7 +330,7 @@ function parseInput(schema: TableSchema, body: string[][]): TableInput {
   return { content, styles, settings };
 }
 
-export function createSingleTable(body: string[][], args: CreateTableArgs) {
+export async function createSingleTable(body: string[][], args: CreateTableArgs) {
   const { options, _cache, basePdf } = args;
   if (!isBlankPdf(basePdf)) {
     console.warn(
@@ -279,12 +358,14 @@ export function createSingleTable(body: string[][], args: CreateTableArgs) {
 
   const fallbackFontName = getFallbackFontName(font);
 
-  const content = parseContent4Table(input, fallbackFontName);
+  const content = parseContent4Table(input, fallbackFontName, start);
 
-  return Table.create({
+  const table = await Table.create({
     input,
     content,
     font,
     _cache: _cache as unknown as Map<string | number, FontKitFont>,
   });
+  if (schema.__rowSlice) table.applyRowSlice(schema.__rowSlice);
+  return table;
 }

@@ -12,7 +12,7 @@ export const isRichTextSchema = (schema: Pick<TextSchema, 'textFormat'>, value?:
   schema.textFormat === TEXT_FORMAT_RICH || isRichDocValue(value);
 
 const LAYOUT_CACHE_KEY = 'rich-text-layout-cache';
-const LAYOUT_CACHE_LIMIT = 200;
+const LAYOUT_CACHE_LIMIT = 1000;
 
 const getLayoutCache = (_cache: Map<string | number, unknown>) => {
   let cache = _cache.get(LAYOUT_CACHE_KEY) as Map<string, Promise<RichLayout>> | undefined;
