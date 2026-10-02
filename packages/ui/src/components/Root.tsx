@@ -24,6 +24,26 @@ const Root = ({ size, scale, children }: Props, ref: Ref<HTMLDivElement>) => {
     entries
       .filter(({ hidden, fontFace }) => hidden && !document.fonts.has(fontFace))
       .forEach(({ fontFace }) => document.fonts.add(fontFace));
+    // The same variant faces are also registered as the family's bold/italic
+    // styles, so CSS `font-weight: bold` in editors uses the real face.
+    Object.entries(font).forEach(([family, { variants }]) => {
+      const styled = [
+        [variants?.bold, { weight: '700' }],
+        [variants?.italic, { style: 'italic' }],
+        [variants?.boldItalic, { weight: '700', style: 'italic' }],
+      ] as const;
+      styled.forEach(([variantName, descriptors]) => {
+        const variant = variantName ? font[variantName] : undefined;
+        if (!variant) return;
+        const { data } = variant;
+        document.fonts.add(
+          new FontFace(family, typeof data === 'string' ? `url(${data})` : (data as BufferSource), {
+            display: 'swap',
+            ...descriptors,
+          }),
+        );
+      });
+    });
     const newFontFaces = entries
       .filter(({ hidden, fontFace }) => !hidden && !document.fonts.has(fontFace))
       .map(({ fontFace }) => fontFace);

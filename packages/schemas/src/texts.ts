@@ -1,4 +1,5 @@
-export { TEXT_OVERFLOW_EXPAND, TEXT_OVERFLOW_VISIBLE } from './text/constants.js';
+export { TEXT_FORMAT_RICH, TEXT_OVERFLOW_EXPAND, TEXT_OVERFLOW_VISIBLE } from './text/constants.js';
+export { computeListMarkers, formatListMarker, LIST_INDENT_MM } from './richText/layout.js';
 export { getDynamicLayoutForText } from './text/dynamicTemplate.js';
 export { measureTextHeight, measureTextWidth, mergeTextLineRangeValue } from './text/measure.js';
 export {
