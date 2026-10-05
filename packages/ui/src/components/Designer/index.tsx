@@ -296,11 +296,17 @@ const TemplateEditor = ({
     ) => {
       future.current = [];
       past.current.push(getHistorySnapshot());
-      const pages = schemasList.map((_, index) =>
-        index === targetPageIndex
-          ? update(getPageLayout(layoutTemplate, index))
-          : getPageLayout(layoutTemplate, index),
-      );
+      const previous = getPageLayout(layoutTemplate, targetPageIndex);
+      const updated = update(previous);
+      // Page margins are a document setting: a change on one page applies to
+      // every page. Grid, guides and other settings stay per page.
+      const marginsChanged =
+        JSON.stringify(updated.margins) !== JSON.stringify(previous.margins);
+      const pages = schemasList.map((_, index) => {
+        if (index === targetPageIndex) return updated;
+        const layout = getPageLayout(layoutTemplate, index);
+        return marginsChanged ? { ...layout, margins: { ...updated.margins } } : layout;
+      });
       setCurrentLayout({ pages });
       onChangeTemplate({
         ...schemasList2template(schemasList, template.basePdf),

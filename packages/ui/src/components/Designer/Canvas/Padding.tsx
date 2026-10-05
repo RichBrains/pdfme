@@ -3,81 +3,44 @@ import type * as CSS from 'csstype';
 import { getPageMargins, type Template, ZOOM } from '@pdfme/common';
 import { theme } from 'antd';
 
-const getPaddingStyle = (i: number, p: number, color: string): CSS.Properties => {
+type Side = 'top' | 'right' | 'bottom' | 'left';
+
+const SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
+
+const BORDER_PROPERTY = {
+  top: 'borderBottom',
+  right: 'borderLeft',
+  bottom: 'borderTop',
+  left: 'borderRight',
+} as const;
+
+/**
+ * One band per margin: a faint tint over the no-content area with a thin
+ * dashed line on its inner edge. Physical sides on purpose: page geometry
+ * does not flip with the writing direction. The line is a real border so it
+ * stays visible in forced-colors mode.
+ */
+const getMarginStyle = (
+  side: Side,
+  size: number,
+  tint: string,
+  line: string,
+): CSS.Properties => {
   const style: CSS.Properties = {
     position: 'absolute',
-    background: color,
-    // The fill makes the no-content area obvious without hiding page artwork.
-    opacity: 0.18,
+    boxSizing: 'border-box',
+    background: `color-mix(in srgb, ${tint} 4%, transparent)`,
     pointerEvents: 'none',
     zIndex: 3,
   };
-  switch (i) {
-    case 0:
-      style.top = 0;
-      style.height = `${p * ZOOM}px`;
-      style.left = 0;
-      style.right = 0;
-      break;
-    case 1:
-      style.right = 0;
-      style.width = `${p * ZOOM}px`;
-      style.top = 0;
-      style.bottom = 0;
-      break;
-    case 2:
-      style.bottom = 0;
-      style.height = `${p * ZOOM}px`;
-      style.left = 0;
-      style.right = 0;
-      break;
-    case 3:
-      style.left = 0;
-      style.width = `${p * ZOOM}px`;
-      style.top = 0;
-      style.bottom = 0;
-      break;
+  const extent = `${size * ZOOM}px`;
+  style[side] = 0;
+  if (side === 'top' || side === 'bottom') {
+    Object.assign(style, { left: 0, right: 0, height: extent });
+  } else {
+    Object.assign(style, { top: 0, bottom: 0, width: extent });
   }
-  return style;
-};
-
-/** A solid red line at the inner edge of each translucent margin band. */
-const getMarginGuideStyle = (i: number, p: number, color: string): CSS.Properties => {
-  const offset = `${p * ZOOM}px`;
-  const style: CSS.Properties = {
-    position: 'absolute',
-    background: color,
-    pointerEvents: 'none',
-    zIndex: 4,
-  };
-
-  switch (i) {
-    case 0:
-      style.top = `calc(${offset} - 1px)`;
-      style.left = 0;
-      style.right = 0;
-      style.height = '2px';
-      break;
-    case 1:
-      style.right = `calc(${offset} - 1px)`;
-      style.top = 0;
-      style.bottom = 0;
-      style.width = '2px';
-      break;
-    case 2:
-      style.bottom = `calc(${offset} - 1px)`;
-      style.left = 0;
-      style.right = 0;
-      style.height = '2px';
-      break;
-    case 3:
-      style.left = `calc(${offset} - 1px)`;
-      style.top = 0;
-      style.bottom = 0;
-      style.width = '2px';
-      break;
-  }
-
+  style[BORDER_PROPERTY[side]] = `1px dashed color-mix(in srgb, ${line} 35%, transparent)`;
   return style;
 };
 
@@ -88,12 +51,12 @@ const Padding = ({ template, pageIndex }: { template: Template; pageIndex: numbe
   const margins = getPageMargins(template, pageIndex);
   return (
     <>
-      {[margins.top, margins.right, margins.bottom, margins.left].map((margin, index) =>
-        margin > 0 ? (
-          <React.Fragment key={String(index)}>
-            <div style={getPaddingStyle(index, margin, token.colorError)} />
-            <div style={getMarginGuideStyle(index, margin, token.colorError)} />
-          </React.Fragment>
+      {SIDES.map((side) =>
+        margins[side] > 0 ? (
+          <div
+            key={side}
+            style={getMarginStyle(side, margins[side], token.colorText, token.colorPrimary)}
+          />
         ) : null,
       )}
     </>
