@@ -104,15 +104,22 @@ export const getTemplateContentBounds = (
   pageSize: Size,
 ): ContentBounds => getContentBounds(getPageMargins(template, pageIndex), pageSize);
 
+/**
+ * How far (mm) a field may overshoot the content area before it counts as
+ * outside: rounding noise from imports or unit conversions must not flag (or
+ * snap back) a field the author placed flush with the margin.
+ */
+export const CONTENT_BOUNDS_TOLERANCE_MM = 0.01;
+
 /** True when any part of the schema lies outside the configured content area. */
 export const isOutsideContentBounds = (
   schema: Pick<Schema, 'position' | 'width' | 'height'>,
   bounds: ContentBounds,
 ): boolean =>
-  schema.position.x < bounds.left - 1e-6 ||
-  schema.position.y < bounds.top - 1e-6 ||
-  schema.position.x + schema.width > bounds.right + 1e-6 ||
-  schema.position.y + schema.height > bounds.bottom + 1e-6;
+  schema.position.x < bounds.left - CONTENT_BOUNDS_TOLERANCE_MM ||
+  schema.position.y < bounds.top - CONTENT_BOUNDS_TOLERANCE_MM ||
+  schema.position.x + schema.width > bounds.right + CONTENT_BOUNDS_TOLERANCE_MM ||
+  schema.position.y + schema.height > bounds.bottom + CONTENT_BOUNDS_TOLERANCE_MM;
 
 /** Moves a schema position so the whole field fits inside the content area. */
 export const clampToContentBounds = (

@@ -22,6 +22,7 @@ import {
   getContentBounds,
   getElementMargins,
   findFreeSchemaPosition,
+  getReflowScope,
 } from '@pdfme/common';
 import { DndContext, type DragEndEvent } from '@dnd-kit/core';
 import RightSidebar from './RightSidebar/index.js';
@@ -50,6 +51,29 @@ import {
 import Root from '../Root.js';
 import ErrorScreen from '../ErrorScreen.js';
 import CtlBar from '../CtlBar.js';
+
+/** Page layout settings that apply to the whole document, not one page. */
+const DOCUMENT_LAYOUT_KEYS = ['margins', 'showMargins', 'grid', 'elementMargins'] as const;
+
+/**
+ * The layout flow a new field placed at `y` joins on a page using the `flow`
+ * reflow scope: the flow of the nearest field ending above it, otherwise the
+ * page's most used flow. Without it the field would stay fixed while the text
+ * around it (e.g. an imported Word document) grows.
+ */
+const flowForNewField = (schemas: SchemaForUI[], y: number): string | undefined => {
+  const flowOf = (schema: SchemaForUI) => (schema as { layoutFlow?: string }).layoutFlow;
+  const above = schemas
+    .filter((schema) => flowOf(schema) && schema.position.y + schema.height <= y + 0.01)
+    .sort((a, b) => b.position.y + b.height - (a.position.y + a.height))[0];
+  if (above) return flowOf(above);
+  const counts = new Map<string, number>();
+  for (const schema of schemas) {
+    const flow = flowOf(schema);
+    if (flow) counts.set(flow, (counts.get(flow) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+};
 
 /**
  * When the canvas scales there is a displacement of the starting position of the dragged schema.
@@ -298,14 +322,19 @@ const TemplateEditor = ({
       past.current.push(getHistorySnapshot());
       const previous = getPageLayout(layoutTemplate, targetPageIndex);
       const updated = update(previous);
-      // Page margins are a document setting: a change on one page applies to
-      // every page. Grid, guides and other settings stay per page.
-      const marginsChanged =
-        JSON.stringify(updated.margins) !== JSON.stringify(previous.margins);
+      // Margins, margin guides, grid/snapping and element margins are document
+      // settings: a change on one page applies to every page. Ruler guides and
+      // the reflow scope stay per page.
+      const changed = DOCUMENT_LAYOUT_KEYS.filter(
+        (key) => JSON.stringify(updated[key]) !== JSON.stringify(previous[key]),
+      );
       const pages = schemasList.map((_, index) => {
         if (index === targetPageIndex) return updated;
         const layout = getPageLayout(layoutTemplate, index);
-        return marginsChanged ? { ...layout, margins: { ...updated.margins } } : layout;
+        if (changed.length === 0) return layout;
+        const next = { ...layout };
+        for (const key of changed) Object.assign(next, { [key]: structuredClone(updated[key]) });
+        return next;
       });
       setCurrentLayout({ pages });
       onChangeTemplate({
@@ -456,8 +485,17 @@ const TemplateEditor = ({
       schemasList[pageCursor],
       defaultSchema.position,
     );
+    /** Lets the new field follow the page's text flow (see flowForNewField). */
+    const joinFlow = (pageLayout: ReturnType<typeof getPageLayout>, schemas: SchemaForUI[]) => {
+      if (getReflowScope(pageLayout) !== 'flow' || (s as { layoutFlow?: string }).layoutFlow)
+        return;
+      const flow = flowForNewField(schemas, s.position.y);
+      if (flow) Object.assign(s, { layoutFlow: flow });
+    };
+
     if (position) {
       s.position = position;
+      joinFlow(getPageLayout(layoutTemplate, pageCursor), schemasList[pageCursor]);
       commitSchemas(schemasList[pageCursor].concat(s));
       setTimeout(() => onEdit([document.getElementById(s.id)]));
       return;
@@ -492,6 +530,7 @@ const TemplateEditor = ({
       layoutPages.push(newLayout);
     }
     s.position = targetPosition as { x: number; y: number };
+    joinFlow(layoutPages[targetPage], _schemasList[targetPage]);
     _schemasList[targetPage] = _schemasList[targetPage].concat(s);
     future.current = [];
     past.current.push(getHistorySnapshot());

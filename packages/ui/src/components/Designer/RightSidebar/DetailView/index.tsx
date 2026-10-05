@@ -9,7 +9,7 @@ import type {
   PropPanelSchema,
   Schema,
 } from '@pdfme/common';
-import { isBlankPdf } from '@pdfme/common';
+import { CONTENT_BOUNDS_TOLERANCE_MM, isBlankPdf } from '@pdfme/common';
 import { TEXT_OVERFLOW_EXPAND, TEXT_OVERFLOW_VISIBLE } from '@pdfme/schemas/texts';
 import type { SidebarProps } from '../../../../types.js';
 import { Menu } from 'lucide-react';
@@ -24,6 +24,20 @@ import ColorWidget from './ColorWidget.js';
 import type { ColorWidgetProps } from './ColorWidget.js';
 import { expandSameTypeBulkUpdateChanges } from './schemaChangeHelpers.js';
 import { InternalNamePath, ValidateErrorEntity } from 'rc-field-form/es/interface.js';
+
+/**
+ * Shows geometry values with at most two decimals, so float noise such as
+ * 9.997999999 reads as 10. The stored value is unchanged, and what the user
+ * types is shown as typed.
+ */
+const geometryNumberProps = {
+  formatter: (value: number | string | undefined, info: { userTyping: boolean; input: string }) => {
+    if (info.userTyping) return info.input;
+    if (value === undefined || value === '') return '';
+    const number = Number(value);
+    return Number.isFinite(number) ? String(Math.round(number * 100) / 100) : String(value);
+  },
+};
 import { SidebarBody, SidebarFrame, SidebarHeader, SIDEBAR_H_PADDING_PX } from '../layout.js';
 
 // Import FormRender as a default import
@@ -204,16 +218,20 @@ const DetailView = (props: DetailViewProps) => {
 
     if (fieldName === 'x') {
       if (value < paddingLeft || value > pageSize.width - paddingRight) return true;
-      if (width > 0 && value + width > pageSize.width - paddingRight) return false;
+      if (width > 0 && value + width > pageSize.width - paddingRight + CONTENT_BOUNDS_TOLERANCE_MM)
+        return false;
     } else if (fieldName === 'y') {
       if (value < paddingTop || value > pageSize.height - paddingBottom) return true;
-      if (height > 0 && value + height > pageSize.height - paddingBottom) return false;
+      if (height > 0 && value + height > pageSize.height - paddingBottom + CONTENT_BOUNDS_TOLERANCE_MM)
+        return false;
     } else if (fieldName === 'width') {
       if (position.x < paddingLeft || position.x > pageSize.width - paddingRight) return true;
-      if (value > 0 && position.x + value > pageSize.width - paddingRight) return false;
+      if (value > 0 && position.x + value > pageSize.width - paddingRight + CONTENT_BOUNDS_TOLERANCE_MM)
+        return false;
     } else if (fieldName === 'height') {
       if (position.y < paddingTop || position.y > pageSize.height - paddingBottom) return true;
-      if (value > 0 && position.y + value > pageSize.height - paddingBottom) return false;
+      if (value > 0 && position.y + value > pageSize.height - paddingBottom + CONTENT_BOUNDS_TOLERANCE_MM)
+        return false;
     }
 
     return true;
@@ -385,6 +403,7 @@ const DetailView = (props: DetailViewProps) => {
             span: 8,
             min: paddingLeft,
             max: pageSize.width - paddingRight,
+            props: geometryNumberProps,
             rules: [
               {
                 validator: (_: unknown, value: number) => validatePosition(_, value, 'x'),
@@ -400,6 +419,7 @@ const DetailView = (props: DetailViewProps) => {
             span: 8,
             min: paddingTop,
             max: pageSize.height - paddingBottom,
+            props: geometryNumberProps,
             rules: [
               {
                 validator: (_: unknown, value: number) => validatePosition(_, value, 'y'),
@@ -415,7 +435,7 @@ const DetailView = (props: DetailViewProps) => {
         widget: 'inputNumber',
         required: true,
         span: 6,
-        props: { min: 0, max: maxWidth },
+        props: { min: 0, max: maxWidth, ...geometryNumberProps },
         rules: [
           {
             validator: (_: unknown, value: number) => validatePosition(_, value, 'width'),
@@ -430,7 +450,14 @@ const DetailView = (props: DetailViewProps) => {
         required: true,
         span: 6,
         disabled: isHeightLocked,
-        props: { min: 0, max: maxHeight },
+        // Content decides the height of height-locked fields: a cap here would
+        // clip text that grows past the page instead of letting it show (and
+        // be flagged) as overflowing.
+        props: {
+          min: 0,
+          ...(isHeightLocked ? {} : { max: maxHeight }),
+          ...geometryNumberProps,
+        },
         rules: [
           {
             validator: (_: unknown, value: number) => validatePosition(_, value, 'height'),

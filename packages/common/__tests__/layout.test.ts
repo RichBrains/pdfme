@@ -101,6 +101,11 @@ describe('content bounds', () => {
 
     expect(isOutsideContentBounds(inside, bounds)).toBe(false);
     expect(isOutsideContentBounds(outside, bounds)).toBe(true);
+    // Rounding noise flush with the margin is not "outside".
+    const flush = { position: { x: 40.001, y: 20 }, width: 150.004, height: 10 };
+    expect(isOutsideContentBounds(flush, bounds)).toBe(false);
+    const past = { position: { x: 40, y: 20 }, width: 150.05, height: 10 };
+    expect(isOutsideContentBounds(past, bounds)).toBe(true);
   });
 
   it('moves a field back inside the content area', () => {

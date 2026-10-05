@@ -14,6 +14,7 @@ import {
 } from '@pdfme/common';
 import { DEFAULT_MAX_ZOOM, PAGE_GAP, RULER_HEIGHT } from './constants.js';
 import { OptionsContext } from './contexts.js';
+import { isHeightLockedSchema } from './components/Designer/Canvas/liveTextReflow.js';
 
 // Define a type for the hotkeys function with additional properties
 type HotkeysFunction = {
@@ -542,7 +543,12 @@ const handlePositionSizeChange = (
   } else if (key === 'width') {
     schema.width = calcBounds(value, 0, pw - schema.position.x - pr);
   } else if (key === 'height') {
-    schema.height = calcBounds(value, 0, ph - schema.position.y - pb);
+    // Content decides the height of height-locked fields (text, tables):
+    // clamping would clip text that grows past the page. The canvas flags
+    // such a field as outside the content area instead.
+    schema.height = isHeightLockedSchema(schema)
+      ? Math.max(0, Number(value))
+      : calcBounds(value, 0, ph - schema.position.y - pb);
   }
 };
 

@@ -578,7 +578,9 @@ describe('changeSchemas test', () => {
         content: 'a',
         position: { x: 100, y: 187 },
         width: 100,
-        height: 100,
+        // Content decides a text field's height, so it is not clipped at
+        // the padding (the canvas flags the overflow instead).
+        height: 110,
       },
       {
         id: schemaB.id,
@@ -590,6 +592,20 @@ describe('changeSchemas test', () => {
         height: 100,
       },
     ]);
+  });
+  test('changeSchemas - still clamps the height of freely resizable fields to the padding', () => {
+    const picture = { ...schemaA, type: 'image', position: { x: 100, y: 187 } };
+    const mockCallback = vi.fn();
+
+    changeSchemas({
+      schemas: [picture],
+      objs: [{ key: 'height', value: 110, schemaId: picture.id }],
+      commitSchemas: mockCallback,
+      basePdf: basePdf2,
+      pluginsRegistry,
+      pageSize,
+    });
+    expect(mockCallback.mock.calls[0][0][0].height).toBe(100);
   });
 });
 

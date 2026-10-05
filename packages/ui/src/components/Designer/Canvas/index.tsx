@@ -452,6 +452,8 @@ const Canvas = (props: Props, ref: Ref<HTMLDivElement>) => {
     position: { x: number; y: number },
   ): { x: number; y: number } | undefined => {
     if (!schema) return undefined;
+    const placed = { position, width: schema.width, height: schema.height };
+    if (!isOutsideContentBounds(placed, contentBounds)) return undefined;
     const aligned = clampToContentBounds(
       { position, width: schema.width, height: schema.height },
       contentBounds,
