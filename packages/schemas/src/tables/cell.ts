@@ -123,10 +123,16 @@ const cellSchema: Plugin<CellSchema> = {
     rootElement.style.backgroundColor = backgroundColor;
 
     const textDiv = createTextDiv(schema);
+    // Lay text out in the padded content area, as the PDF render does; rich
+    // text positions its lines from schema.width and would otherwise spill
+    // past the cell's padding and border.
+    const contentArea = getBoxContentArea(schema);
     await textUiRender({
       ...arg,
       schema: {
         ...schema,
+        width: contentArea.width,
+        height: contentArea.height,
         backgroundColor: '',
         borderColor: '',
         borderWidth: createBoxDimension(0),
